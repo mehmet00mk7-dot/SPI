@@ -1,0 +1,250 @@
+SONUCLAR - spi_exec (VHDL, async reset) dogrulamasi
+Tarih: 2026-11-24  |  GHDL 4.1.0  |  Icarus Verilog version 12.0 (stable) ()
+
+== Orijinal ADI dosyalari (vendor/adi) SHA-256
+f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  spi_engine_execution.v
+70868cc989cda94ffe54bed3e99fa86520bc812980564003c7f64621c9233460  spi_engine_execution_shiftreg.v
+
+== 1) Lockstep, normal reset (8 konfig x 3 seed x 1.000.000 clock)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=1 SDI=1 DELAY=0 CFG=2 DIV=2 SDO_DEF=1 SEED=1
+    cycles=1000000 karsilastirilan=998601 reset=77 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=1 SDI=1 DELAY=0 CFG=2 DIV=2 SDO_DEF=1 SEED=2
+    cycles=1000000 karsilastirilan=998876 reset=62 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=1 SDI=1 DELAY=0 CFG=2 DIV=2 SDO_DEF=1 SEED=3
+    cycles=1000000 karsilastirilan=998816 reset=65 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=8 SDI=1 DELAY=0 CFG=4 DIV=3 SDO_DEF=0 SEED=1
+    cycles=1000000 karsilastirilan=998756 reset=67 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=8 SDI=1 DELAY=0 CFG=4 DIV=3 SDO_DEF=0 SEED=2
+    cycles=1000000 karsilastirilan=998494 reset=85 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=8 SDI=1 DELAY=0 CFG=4 DIV=3 SDO_DEF=0 SEED=3
+    cycles=1000000 karsilastirilan=998744 reset=68 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=2 SDI=1 DELAY=2 CFG=1 DIV=0 SDO_DEF=1 SEED=1
+    cycles=1000000 karsilastirilan=998447 reset=84 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=2 SDI=1 DELAY=2 CFG=1 DIV=0 SDO_DEF=1 SEED=2
+    cycles=1000000 karsilastirilan=998628 reset=75 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=2 SDI=1 DELAY=2 CFG=1 DIV=0 SDO_DEF=1 SEED=3
+    cycles=1000000 karsilastirilan=998961 reset=59 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=4 SDI=2 DELAY=0 CFG=7 DIV=0 SDO_DEF=0 SEED=1
+    cycles=1000000 karsilastirilan=998447 reset=84 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=4 SDI=2 DELAY=0 CFG=7 DIV=0 SDO_DEF=0 SEED=2
+    cycles=1000000 karsilastirilan=998628 reset=75 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=4 SDI=2 DELAY=0 CFG=7 DIV=0 SDO_DEF=0 SEED=3
+    cycles=1000000 karsilastirilan=998961 reset=59 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=1 SDI=1 DELAY=1 CFG=6 DIV=2 SDO_DEF=1 SEED=1
+    cycles=1000000 karsilastirilan=998982 reset=55 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=1 SDI=1 DELAY=1 CFG=6 DIV=2 SDO_DEF=1 SEED=2
+    cycles=1000000 karsilastirilan=998550 reset=81 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=1 SDI=1 DELAY=1 CFG=6 DIV=2 SDO_DEF=1 SEED=3
+    cycles=1000000 karsilastirilan=998812 reset=65 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=8 SDI=2 DELAY=3 CFG=3 DIV=1 SDO_DEF=0 SEED=1
+    cycles=1000000 karsilastirilan=998694 reset=71 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=8 SDI=2 DELAY=3 CFG=3 DIV=1 SDO_DEF=0 SEED=2
+    cycles=1000000 karsilastirilan=998598 reset=76 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=8 SDI=2 DELAY=3 CFG=3 DIV=1 SDO_DEF=0 SEED=3
+    cycles=1000000 karsilastirilan=998716 reset=70 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=1 SDI=2 DELAY=0 CFG=2 DIV=0 SDO_DEF=0 SEED=1
+    cycles=1000000 karsilastirilan=998868 reset=60 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=1 SDI=2 DELAY=0 CFG=2 DIV=0 SDO_DEF=0 SEED=2
+    cycles=1000000 karsilastirilan=998837 reset=61 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=1 SDI=2 DELAY=0 CFG=2 DIV=0 SDO_DEF=0 SEED=3
+    cycles=1000000 karsilastirilan=998685 reset=70 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=4 SDI=1 DELAY=1 CFG=0 DIV=0 SDO_DEF=1 SEED=1
+    cycles=1000000 karsilastirilan=998868 reset=60 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=4 SDI=1 DELAY=1 CFG=0 DIV=0 SDO_DEF=1 SEED=2
+    cycles=1000000 karsilastirilan=998837 reset=61 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=4 SDI=1 DELAY=1 CFG=0 DIV=0 SDO_DEF=1 SEED=3
+    cycles=1000000 karsilastirilan=998685 reset=70 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  SONUC: BASARILI
+  TOPLAM: kosu=24 karsilastirilan clock=23969491 rastgele reset=1660 | FARK P1=0 AS=0
+       24 SONUC: BASARILI
+
+== 2) Lockstep, KISA async reset (RST_MODE=1, 8 konfig x 2 seed x 500.000 clock)
+    CLOCK-STOP reset:   OK (cs=1 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=1 SDI=1 DELAY=0 CFG=2 DIV=2 SDO_DEF=1 SEED=11
+    cycles=500000 karsilastirilan=499359 reset=34 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=35 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=1 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=1 SDI=1 DELAY=0 CFG=2 DIV=2 SDO_DEF=1 SEED=12
+    cycles=500000 karsilastirilan=499477 reset=28 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=29 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=11111111 sclk=0 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=8 SDI=1 DELAY=0 CFG=4 DIV=3 SDO_DEF=0 SEED=11
+    cycles=500000 karsilastirilan=499439 reset=30 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=31 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=11111111 sclk=0 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=16 CS=8 SDI=1 DELAY=0 CFG=4 DIV=3 SDO_DEF=0 SEED=12
+    cycles=500000 karsilastirilan=499387 reset=35 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=36 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=11 sclk=0 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=2 SDI=1 DELAY=2 CFG=1 DIV=0 SDO_DEF=1 SEED=11
+    cycles=500000 karsilastirilan=499509 reset=25 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=26 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=11 sclk=0 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=2 SDI=1 DELAY=2 CFG=1 DIV=0 SDO_DEF=1 SEED=12
+    cycles=500000 karsilastirilan=499358 reset=35 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=36 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=1111 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=4 SDI=2 DELAY=0 CFG=7 DIV=0 SDO_DEF=0 SEED=11
+    cycles=500000 karsilastirilan=499509 reset=25 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=26 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=1111 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=24 CS=4 SDI=2 DELAY=0 CFG=7 DIV=0 SDO_DEF=0 SEED=12
+    cycles=500000 karsilastirilan=499358 reset=35 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=36 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=1 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=1 SDI=1 DELAY=1 CFG=6 DIV=2 SDO_DEF=1 SEED=11
+    cycles=500000 karsilastirilan=499551 reset=24 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=25 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=1 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=1 SDI=1 DELAY=1 CFG=6 DIV=2 SDO_DEF=1 SEED=12
+    cycles=500000 karsilastirilan=499226 reset=42 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=43 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=11111111 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=8 SDI=2 DELAY=3 CFG=3 DIV=1 SDO_DEF=0 SEED=11
+    cycles=500000 karsilastirilan=499217 reset=43 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=44 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=11111111 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=32 CS=8 SDI=2 DELAY=3 CFG=3 DIV=1 SDO_DEF=0 SEED=12
+    cycles=500000 karsilastirilan=499170 reset=46 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=47 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=1 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=1 SDI=2 DELAY=0 CFG=2 DIV=0 SDO_DEF=0 SEED=11
+    cycles=500000 karsilastirilan=499445 reset=31 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=32 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=1 sclk=1 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=1 SDI=2 DELAY=0 CFG=2 DIV=0 SDO_DEF=0 SEED=12
+    cycles=500000 karsilastirilan=499403 reset=34 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=35 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=1111 sclk=0 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=4 SDI=1 DELAY=1 CFG=0 DIV=0 SDO_DEF=1 SEED=11
+    cycles=500000 karsilastirilan=499445 reset=31 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=32 hata=0
+  SONUC: BASARILI
+    CLOCK-STOP reset:   OK (cs=1111 sclk=0 sdo_t=1)
+    SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+  CONFIG DW=8 CS=4 SDI=1 DELAY=1 CFG=0 DIV=0 SDO_DEF=1 SEED=12
+    cycles=500000 karsilastirilan=499403 reset=34 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=1 guvenli-cikis kontrol=35 hata=0
+  SONUC: BASARILI
+  TOPLAM: kosu=16 karsilastirilan clock=7990256 rastgele reset=532 | FARK P1=0 AS=0
+       16 SONUC: BASARILI
+
+== 3) Mutation sanity check (5 bilerek konmus hata x 2 konfig)
+  M1_cpha_ignored [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+  M1_cpha_ignored [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+  M2_last_transfer_off_by_one [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+  M2_last_transfer_off_by_one [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+  M3_sdi_delay_index [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+  M3_sdi_delay_index [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+  M4_sleep_bug_fixed [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+  M4_sleep_bug_fixed [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+  M5_cs_activate_mask [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+  M5_cs_activate_mask [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+
+== 4) AD7923 driver testleri, core = spi_exec (VHDL async)
+  T_DOUT=25.0 ns:
+      GECTI  T01 power-up (dummy + select) + 4 kanal
+      GECTI  T02 tek tarama, 4 frame
+      GECTI  T03 select frame sonucu basilmiyor
+      GECTI  T04 surekli + STOP (<= 1 frame)
+      GECTI  T05 period 100 us
+      GECTI  T06 period < tarama suresi
+      GECTI  T07 mask sinirda uygulanir, select 1 kez
+      GECTI  T08 mask 0000 -> tarama bitince durur
+      GECTI  T09 calisan tarama biter, durur
+      GECTI  T10 start yok sayma
+      GECTI  T11 sonraki frame'de gecerli
+      GECTI  T12 veri basilmaz, select ile hizalanip devam
+      GECTI  T13 adres hatasi
+      GECTI  T14 ERR_LIMIT=4 hatali tarama -> durur
+      GECTI  T15 timeout -> core_rst, durur
+      GECTI  T16 SYNC id hatasi -> durur, power-up yeniden
+      GECTI  T17 FIFO underflow -> durur, power-up yeniden
+      GECTI  T18 rst_n abort + yeniden power-up
+      GECTI  T19 mask 0101 -> yalniz ch0/ch2, scan_done ch2'de
+        AD7923[0]: cerceve=309 gecerli=308 gecersiz=1 iptal=1 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+        AD7923[0]: cerceve=309 gecerli=308 gecersiz=1 iptal=1 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+    TOPLAM: 19 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+  T_DOUT=40.0 ns:
+      GECTI  T01 power-up (dummy + select) + 4 kanal
+      GECTI  T02 tek tarama, 4 frame
+      GECTI  T03 select frame sonucu basilmiyor
+      GECTI  T04 surekli + STOP (<= 1 frame)
+      GECTI  T05 period 100 us
+      GECTI  T06 period < tarama suresi
+      GECTI  T07 mask sinirda uygulanir, select 1 kez
+      GECTI  T08 mask 0000 -> tarama bitince durur
+      GECTI  T09 calisan tarama biter, durur
+      GECTI  T10 start yok sayma
+      GECTI  T11 sonraki frame'de gecerli
+      GECTI  T12 veri basilmaz, select ile hizalanip devam
+      GECTI  T13 adres hatasi
+      GECTI  T14 ERR_LIMIT=4 hatali tarama -> durur
+      GECTI  T15 timeout -> core_rst, durur
+      GECTI  T16 SYNC id hatasi -> durur, power-up yeniden
+      GECTI  T17 FIFO underflow -> durur, power-up yeniden
+      GECTI  T18 rst_n abort + yeniden power-up
+      GECTI  T19 mask 0101 -> yalniz ch0/ch2, scan_done ch2'de
+        AD7923[0]: cerceve=309 gecerli=308 gecersiz=1 iptal=1 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+        AD7923[0]: cerceve=309 gecerli=308 gecersiz=1 iptal=1 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+    TOPLAM: 19 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
