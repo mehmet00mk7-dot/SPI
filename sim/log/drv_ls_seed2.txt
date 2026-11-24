@@ -1,0 +1,10 @@
+=== tb_drv_lockstep: ad7923_top_sref (sync) <-> ad7923_top (async), SEED=2 CYCLES=2000000 MUT=0 ===
+  kapsama: start pulse=637 (kabul=267) stop=127 (busy iken 56) continuous degisim=162 surekli tarama=240
+           mask degisim=278 (busy iken 113, 0000=52) period degisim=110 range/coding degisim=815
+           err=31 core_rst=2 scan_done=405 data_valid=800 dummy(power-up) frame=52 ERR_LIMIT durus=3
+           rst_n pulse=45 (frame icinde 2) | enjeksiyon: frame=13 burst=2 timeout=4 underflow=6 sync_id=11
+    AD7923[0]: cerceve=1028 gecerli=1027 gecersiz=1 iptal=2 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+    AD7923[0]: cerceve=1028 gecerli=1027 gecersiz=1 iptal=2 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+  clock=2000002 karsilastirilan=1999956 atlanan(reset assert -> ilk posedge)=45 | FARK=0 (ilk: clock -1) | async reset kontrol=45 hata=0
+  SONUC: BASARILI
+../tb/tb_drv_lockstep.v:421: $finish called at 200000160 (100ps)

@@ -11,6 +11,17 @@
 --                 Bu clock'ta taramanın bütün kanal register'ları günceldir.
 --                 Hatayla kesilen taramada driver data_last basmadığı için gelmez.
 -- Gecikme: data_valid -> chN_valid / scan_done = 1 clk.
+--
+-- RESET STRATEJİSİ
+--   * rst_n kaynağı: projedeki reset synchronizer (async assert, sync deassert,
+--     PLL lock'a bağlı). Bu blok, ad7923_drv ve core (spi_exec) aynı rst_n'den
+--     beslenir; core'un resetn'i ad7923_top'ta rst_n ile async assert edilen bir
+--     flop'tan (p_core_resetn) gelir.
+--   * p_regs async reset: process(clk, rst_n), if rst_n = '0' ... elsif
+--     rising_edge(clk). Reset değerleri eski sync sürümle aynı (hepsi 0); reset'siz
+--     register yok. rst_n düşer düşmez chN_data = 0, chN_valid = scan_done = '0'.
+--   * Async reset olarak yalnız rst_n kullanılır. Driver'ın core_rst'u (senkron
+--     soft reset) bu bloğu etkilemez.
 -- ============================================================================
 library ieee;
 use ieee.std_logic_1164.all;
@@ -47,21 +58,19 @@ architecture rtl of ad7923_ch_regs is
 
 begin
 
-  p_regs : process (clk)
+  p_regs : process (clk, rst_n)
   begin
-    if rising_edge(clk) then
-      if rst_n = '0' then
-        ch_data_r   <= (others => (others => '0'));
-        ch_valid_r  <= (others => '0');
-        scan_done_r <= '0';
-      else
-        ch_valid_r  <= (others => '0');
-        scan_done_r <= '0';
-        if data_valid = '1' then
-          ch_data_r(to_integer(unsigned(data_ch)))  <= data;
-          ch_valid_r(to_integer(unsigned(data_ch))) <= '1';
-          scan_done_r                               <= data_last;
-        end if;
+    if rst_n = '0' then
+      ch_data_r   <= (others => (others => '0'));
+      ch_valid_r  <= (others => '0');
+      scan_done_r <= '0';
+    elsif rising_edge(clk) then
+      ch_valid_r  <= (others => '0');
+      scan_done_r <= '0';
+      if data_valid = '1' then
+        ch_data_r(to_integer(unsigned(data_ch)))  <= data;
+        ch_valid_r(to_integer(unsigned(data_ch))) <= '1';
+        scan_done_r                               <= data_last;
       end if;
     end if;
   end process p_regs;

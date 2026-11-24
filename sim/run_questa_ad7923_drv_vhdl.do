@@ -2,8 +2,15 @@
 # Tasarım tamamen VHDL; yalnız testbench ve AD7923 modeli Verilog.
 # Resmi doğrulama sonucu bu script'ten alınır.
 #
-# Komut satırı:  cd sim ; vsim -c -do run_questa_ad7923_drv.do
-# GUI:           cd sim ; vsim -do run_questa_ad7923_drv.do
+# Driver (ad7923_drv, ad7923_ch_regs, ad7923_top) async reset'tir.
+#   1) tb_ad7923_drv   : T01-T19 (mevcut) + T20-T22 (async reset: frame ortası, clock
+#                        dururken, 1 clock'luk reset) -> 22 test
+#   2) tb_drv_lockstep : eski sync driver (rtl/drv_sync_ref, *_sref) <-> yeni async driver,
+#                        her clock bütün çıkışlar. Yalnız batch modda ve RUN_LOCKSTEP = 1 ise.
+#                        LS_SEEDS / LS_CYCLES ile ayarlanır.
+#
+# Komut satırı:  cd sim ; vsim -c -do run_questa_ad7923_drv_vhdl.do
+# GUI:           cd sim ; vsim -do run_questa_ad7923_drv_vhdl.do
 # DOUT gecikmesi köşeleri: aşağıdaki T_DOUT değerini 12.0 / 25.0 / 40.0 yapın.
 #
 # Not: testbench +define+QUESTA ile derlenir; iç sinyallere SignalSpy
@@ -13,6 +20,9 @@ quietly set T_DOUT 25.0
 quietly set RTL    ../rtl
 quietly set TB     ../tb
 quietly set LIB    work_ad7923_vhdl
+quietly set RUN_LOCKSTEP 1
+quietly set LS_SEEDS  {1 2 3}
+quietly set LS_CYCLES 2000000
 
 if {[file exists $LIB]} { vdel -lib $LIB -all }
 vlib $LIB
@@ -27,8 +37,13 @@ vcom -2008 -work work $RTL/drv/ad7923_drv.vhd
 vcom -2008 -work work $RTL/drv/ad7923_ch_regs.vhd
 vcom -2008 -work work $RTL/drv/ad7923_top.vhd
 
-# 3) AD7923 modeli ve testbench (Verilog / SystemVerilog sözdizimi)
-vlog -sv -work work +define+QUESTA $TB/ad7923_model.v $TB/tb_ad7923_drv.v
+# 2b) Referans: async geçişinden önceki sync reset driver (yalnız lockstep için)
+vcom -2008 -work work $RTL/drv_sync_ref/ad7923_drv_sref.vhd
+vcom -2008 -work work $RTL/drv_sync_ref/ad7923_ch_regs_sref.vhd
+vcom -2008 -work work $RTL/drv_sync_ref/ad7923_top_sref.vhd
+
+# 3) AD7923 modeli ve testbench'ler (Verilog / SystemVerilog sözdizimi)
+vlog -sv -work work +define+QUESTA $TB/ad7923_model.v $TB/tb_ad7923_drv.v $TB/tb_drv_lockstep.v
 
 # 4) Simülasyon
 vsim -onfinish stop -voptargs=+acc -gT_DOUT=$T_DOUT work.tb_ad7923_drv
@@ -50,6 +65,16 @@ if {![batch_mode]} {
     /tb_ad7923_drv/u_dut/cmd_valid /tb_ad7923_drv/u_dut/cmd_ready \
     /tb_ad7923_drv/u_dut/sdi_valid /tb_ad7923_drv/u_dut/sync_valid \
     /tb_ad7923_drv/u_dut/core_rst
+  add wave -group reset /tb_ad7923_drv/clk_en /tb_ad7923_drv/exp_abort_win /tb_ad7923_drv/n_exp_abort
 }
 
 run -all
+
+# 5) Driver lockstep (sync referans <-> async driver), yalnız batch modda
+if {[batch_mode] && $RUN_LOCKSTEP} {
+  foreach s $LS_SEEDS {
+    quit -sim
+    vsim -onfinish stop -voptargs=+acc -gSEED=$s -gCYCLES=$LS_CYCLES work.tb_drv_lockstep
+    run -all
+  }
+}

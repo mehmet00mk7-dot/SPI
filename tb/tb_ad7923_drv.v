@@ -11,6 +11,10 @@
 //   injector  : tek bir frame'de MISO'ya istenen 16 bitlik kelimeyi model
 //               zamanlamasıyla basar (format / adres hatası enjeksiyonu).
 //
+// T20-T22 (driver async reset): frame ortasında async reset (posedge + 3 ns), clock
+// dururken reset (clk_en = 0), 1 clock'luk reset. Reset'in yarıda kestiği frame'ler yalnız
+// bu testlerde "beklenen abort" sayılır (exp_abort_win); dışındaki her iptal hata sayılır.
+//
 // İç sinyaller (frame süresi ölçümü, SYNC/sdi force) Icarus'ta hierarchical
 // referansla, Questa'da (+define+QUESTA) SignalSpy ile erişilir.
 //
@@ -29,7 +33,8 @@ module tb_ad7923_drv;
 
   // ---------------------------------------------------------------- DUT
   reg clk = 1'b0;
-  always #5 clk = ~clk;
+  reg clk_en = 1'b1;                    // T21: clock durdurma (yalnız T21'de 0)
+  always #5 if (clk_en) clk = ~clk;
 
   reg        rst_n = 1'b0, start = 1'b0, stop = 1'b0, continuous = 1'b0;
   reg        range_sel = 1'b1, coding_sel = 1'b1;
@@ -244,6 +249,40 @@ module tb_ad7923_drv;
   always @(posedge s_core_rst) begin t_crst_rise = $realtime; n_core_rst = n_core_rst + 1; end
   always @(negedge s_core_rst) t_crst_fall = $realtime;
 
+  // ---------------------------------------- T20-T22: async reset monitörleri
+  // Beklenen abort: yalnız T20-T22 penceresinde (exp_abort_win = 1), rst_n düştüğünde
+  // CS low ve frame eksikse (< 16 SCLK) modelin "iptal" sayacı bu reset'ten beklenir.
+  // Bu pencere dışındaki her iptal (T18'in kendi kontrol ettiği 1 iptal hariç) hata sayılır.
+  reg      exp_abort_win = 1'b0;
+  integer  n_exp_abort = 0;
+  // T20b: data_valid = 1 olduğu clock'ta reset -> o verinin chN_valid'i (1 clk sonra)
+  // hiç gelmez. Bu yalnız T20b'de beklenir ve global "chN_valid toplamı = çıkış sayısı"
+  // kontrolünde tam olarak bu kadar düşülür.
+  integer  n_dv_cut = 0;
+  always @(negedge rst_n)
+    if (exp_abort_win && spi_cs_n === 1'b0 && mo_bits < 16) n_exp_abort = n_exp_abort + 1;
+  // power-up: dummy (FFFF) frame'in CS yükselişi -> sonraki CS düşüşü
+  realtime t_dummy_rise = 0.0, pw_gap = 0.0;
+  reg      dummy_pend = 1'b0;
+  always @(posedge spi_cs_n) if (mo_bits == 16 && mo_sh == 16'hFFFF) begin t_dummy_rise = $realtime; dummy_pend = 1'b1; end
+  always @(negedge spi_cs_n) if (dummy_pend) begin pw_gap = $realtime - t_dummy_rise; dummy_pend = 1'b0; end
+  // clock kenarı sayacı / son posedge zamanı
+  integer  n_posedge = 0;
+  realtime t_last_pos = 0.0;
+  always @(posedge clk) begin n_posedge = n_posedge + 1; t_last_pos = $realtime; end
+
+  // reset değerleri: driver çıkışları + kanal register'ları
+  function drv_safe(input dummy);
+    drv_safe = (busy === 1'b0) && (err === 1'b0) && (data_valid === 1'b0) && (scan_done === 1'b0) &&
+               (ch0_valid === 1'b0) && (ch1_valid === 1'b0) && (ch2_valid === 1'b0) && (ch3_valid === 1'b0) &&
+               (data === 12'd0) && (data_ch === 2'd0) && regs_zero(0);
+  endfunction
+  task show_pins(input [8*24:1] when);
+    $display("      %0s: busy=%b err=%b data_valid=%b scan_done=%b chN_valid=%b%b%b%b data=%h data_ch=%0d chN_data=%h/%h/%h/%h | cs_n=%b sclk=%b mosi=%b",
+             when, busy, err, data_valid, scan_done, ch3_valid, ch2_valid, ch1_valid, ch0_valid, data, data_ch,
+             ch0_data, ch1_data, ch2_data, ch3_data, spi_cs_n, spi_sclk, spi_mosi);
+  endtask
+
   // ------------------------------------------------------------ yardımcılar
   realtime t_start, t_stop, t_rst_rel, t0, t1;
   integer  k, n_pass = 0, n_fail = 0, ok, ok_m, ok_c, ok_s, w_mo, w_dl, w_cs, w_sd, tgt;
@@ -379,6 +418,9 @@ module tb_ad7923_drv;
 
   // ------------------------------------------------------------- testler
   integer  cs_a, dl_a, i, errs_before, crst_before, ab_before;
+  integer  ab_t, br_a, pos_a, ok_pre, ok_now, ok_hold, ok_noauto, ok_pu, ok_dv, nb;
+  reg      ok_a, ok_b, ok_c2;
+  realtime t_r0;
   realtime t_ab_csf, t_ab_rst, t_cs_rel, t_inj_csf, lat;
   reg      busy_snap, err_snap, rz0, rz18;
   reg [11:0] d1_snap, d3_snap;
@@ -696,6 +738,135 @@ module tb_ad7923_drv;
            ch0_data === dl_d[i0] && ch2_data === dl_d[i2] && err === 1'b0, "T19 mask 0101 -> yalniz ch0/ch2, scan_done ch2'de");
     ch_mask = 4'hF;
 
+    // ===================================================================== T20
+    // Frame ortasında async reset. rst_n, SCLK aktifken ve clock kenarına denk
+    // gelmeyen bir anda (posedge + 3 ns) düşer; kontrol rst_n + 1 ns'de (sonraki
+    // clock kenarından önce). Ek olarak aynı kontrol, 1 clk'lik pulse çıkışları
+    // (data_valid; scan_done + chN_valid) '1' iken tekrarlanır.
+    $display("\n--- T20 frame ortasinda async reset (SCLK aktif, posedge + 3 ns)");
+    exp_abort_win = 1'b1; ab_t = n_exp_abort; ab_before = u_adc.aborted;
+    ch_mask = 4'hF; continuous = 1'b1; period_us = 16'd0;
+    pulse_start; wait_more(6);
+    // err = 1 olsun (sticky): bir frame'e format hatası, tarama devam eder
+    wait_dv_ch(1); #300; inj_word = 16'hFFFF; inj_arm = 1'b1; wait_more(4);
+    // SCLK aktif: CS düştükten 400 ns sonra, bir posedge'den 3 ns sonra
+    @(negedge spi_cs_n); #400; @(posedge clk); #3;
+    show_pins("reset oncesi");
+    ok_pre = (busy === 1'b1) && (err === 1'b1) && (spi_cs_n === 1'b0) && (mo_bits > 0) && (mo_bits < 16) &&
+             !regs_zero(0) && (data !== 12'd0);
+    $display("    reset oncesi: busy=1 err=1 CS low, SCLK aktif (%0d/16 bit), chN_data/data dolu: %0s", mo_bits, ok_pre ? "evet" : "HAYIR");
+    pos_a = n_posedge; rst_n = 1'b0; t_r0 = $realtime;
+    #1;
+    show_pins("rst_n + 1 ns");
+    ok_now = drv_safe(0) && (spi_cs_n === 1'b1) && (spi_sclk === 1'b1) && (n_posedge == pos_a);
+    $display("    rst_n + 1 ns (son posedge'den %0.0f ns sonra, arada clock kenari %0d): cikislar reset degerinde, cs_n=1, sclk=CPOL: %0s",
+             $realtime - t_last_pos, n_posedge - pos_a, ok_now ? "evet" : "HAYIR");
+    repeat (10) @(posedge clk); ok_hold = drv_safe(0) && (spi_cs_n === 1'b1);
+    @(posedge clk); #1 rst_n = 1'b1;
+    // reset kalktı: continuous = 1, mask 1111 olsa da kendiliğinden başlamamalı
+    i = n_busy_rise; cs_a = n_cs; dl_a = dl_n;
+    repeat (2000) @(posedge clk);
+    ok_noauto = (n_busy_rise == i) && (n_cs == cs_a) && (dl_n == dl_a) && drv_safe(0) && (spi_cs_n === 1'b1);
+    $display("    reset kalktiktan sonra 20 us: busy yukselme %0d, CS %0d, cikis %0d -> kendiliginden baslamadi: %0s",
+             n_busy_rise - i, n_cs - cs_a, dl_n - dl_a, ok_noauto ? "evet" : "HAYIR");
+    continuous = 1'b0; mark; pulse_start; wait_idle(200000.0);
+    ew(16'hFFFF); ew(cw(0,1,1)); ew(cw(1,1,1)); ew(cw(2,1,1)); ew(cw(3,1,1)); ew(cw(0,1,1));
+    ec(0); ec(1); ec(2); ec(3); cmp_mosi; cmp_ch; chk_sd_last(3);
+    ok_pu = ok_m && ok_c && ok_s && (pw_gap >= 1000.0) && (err === 1'b0) && (min_cs_t >= MIN_CYC);
+    $display("    start: ilk kelime %h (dummy) | dummy CS yukselis -> sonraki CS: %0.2f us (>= 1 us) | MOSI/kanal/scan_done: %0s",
+             mo_log[w_mo], pw_gap / 1000.0, (ok_m && ok_c && ok_s) ? "dogru" : "YANLIS");
+    ok_a = ok_pre && ok_now && ok_hold && ok_noauto && ok_pu;
+
+    // T20b: data_valid = 1 iken (posedge + 3 ns) reset -> data_valid, data, data_ch 1 ns'de 0
+    continuous = 1'b1; pulse_start; wait_more(6);
+    ok_dv = 0; while (!ok_dv) begin @(posedge clk); #3; ok_dv = (data_valid === 1'b1) && (data !== 12'd0); end
+    pos_a = n_posedge; rst_n = 1'b0; n_dv_cut = n_dv_cut + 1; #1;
+    ok_b = (data_valid === 1'b0) && (data === 12'd0) && (data_ch === 2'd0) && drv_safe(0) && (n_posedge == pos_a);
+    @(posedge clk); #1;      // senkron sürümde chN_valid bu kenarda gelirdi; async'te reset'te
+    ok_b = ok_b && drv_safe(0);
+    $display("    T20b data_valid=1 iken reset: rst_n + 1 ns data_valid=%b data=%h, sonraki kenarda chN_valid=%b%b%b%b -> %0s",
+             data_valid, data, ch3_valid, ch2_valid, ch1_valid, ch0_valid, ok_b ? "dogru" : "YANLIS");
+    repeat (8) @(posedge clk); #1 rst_n = 1'b1;
+    // T20c: scan_done = 1 (ch3_valid = 1) iken reset
+    pulse_start; wait_more(6);
+    ok_dv = 0; while (!ok_dv) begin @(posedge clk); #3; ok_dv = (scan_done === 1'b1) && (ch3_valid === 1'b1); end
+    pos_a = n_posedge; rst_n = 1'b0; #1;
+    ok_c2 = (scan_done === 1'b0) && (ch3_valid === 1'b0) && regs_zero(0) && drv_safe(0) && (n_posedge == pos_a);
+    $display("    T20c scan_done=1 iken reset: rst_n + 1 ns scan_done=%b ch3_valid=%b chN_data=0: %0s -> %0s",
+             scan_done, ch3_valid, regs_zero(0) ? "evet" : "HAYIR", ok_c2 ? "dogru" : "YANLIS");
+    repeat (8) @(posedge clk); #1 rst_n = 1'b1;
+    continuous = 1'b0; mark; pulse_start; wait_idle(200000.0);
+    ew(16'hFFFF); ew(cw(0,1,1)); ew(cw(1,1,1)); ew(cw(2,1,1)); ew(cw(3,1,1)); ew(cw(0,1,1));
+    ec(0); ec(1); ec(2); ec(3); cmp_mosi; cmp_ch; chk_sd_last(3);
+    ok_c2 = ok_c2 && ok_m && ok_c && ok_s && err === 1'b0;
+    $display("    beklenen abort (CS low, < 16 SCLK iken reset): %0d | model iptal: %0d", n_exp_abort - ab_t, u_adc.aborted - ab_before);
+    result(ok_a && ok_b && ok_c2 && (u_adc.aborted - ab_before == n_exp_abort - ab_t) && (n_exp_abort - ab_t >= 1),
+           "T20 frame ortasinda async reset");
+
+    // ===================================================================== T21
+    $display("\n--- T21 clock dururken reset");
+    ab_t = n_exp_abort; ab_before = u_adc.aborted;
+    ch_mask = 4'hF; continuous = 1'b1;
+    pulse_start; wait_more(6);
+    @(negedge spi_cs_n); #300; @(negedge clk); clk_en = 1'b0;     // clock '0'da durur
+    pos_a = n_posedge; #200;
+    show_pins("clock durdu");
+    ok_pre = (spi_cs_n === 1'b0) && (busy === 1'b1) && (mo_bits > 0) && (mo_bits < 16) && !regs_zero(0);
+    $display("    clock durdu (frame ortasi, %0d/16 bit): CS low ve busy=1 donuk: %0s", mo_bits, ok_pre ? "evet" : "HAYIR");
+    rst_n = 1'b0; #1;
+    show_pins("rst_n + 1 ns");
+    ok_now = drv_safe(0) && (spi_cs_n === 1'b1) && (spi_sclk === 1'b1);
+    #500;
+    ok_hold = drv_safe(0) && (spi_cs_n === 1'b1) && (spi_sclk === 1'b1) && (n_posedge == pos_a);
+    $display("    clock yokken rst_n: 1 ns'de guvenli %0s, 500 ns sonra hala guvenli %0s (clock kenari: %0d)",
+             ok_now ? "evet" : "HAYIR", ok_hold ? "evet" : "HAYIR", n_posedge - pos_a);
+    clk_en = 1'b1;                                                  // clock geri gelir, rst_n hala 0
+    repeat (10) @(posedge clk); ok_hold = ok_hold && drv_safe(0) && (spi_cs_n === 1'b1);
+    @(posedge clk); #1 rst_n = 1'b1;
+    i = n_busy_rise; cs_a = n_cs; dl_a = dl_n;
+    repeat (2000) @(posedge clk);
+    ok_noauto = (n_busy_rise == i) && (n_cs == cs_a) && (dl_n == dl_a) && drv_safe(0);
+    continuous = 1'b0; mark; pulse_start; wait_idle(200000.0);
+    ew(16'hFFFF); ew(cw(0,1,1)); ew(cw(1,1,1)); ew(cw(2,1,1)); ew(cw(3,1,1)); ew(cw(0,1,1));
+    ec(0); ec(1); ec(2); ec(3); cmp_mosi; cmp_ch; chk_sd_last(3);
+    ok_pu = ok_m && ok_c && ok_s && (pw_gap >= 1000.0) && (err === 1'b0);
+    // sürekli tarama da çalışmalı
+    continuous = 1'b1; mark; pulse_start; wait_out(12); stop_in_gap;
+    for (k = 0; k < dl_n - w_dl; k = k + 1) ec(k % 4);
+    cmp_ch; chk_sd_last(3); ok_pu = ok_pu && ok_c && ok_s && err === 1'b0;
+    $display("    clock geri geldi: kendiliginden baslamadi %0s | start: power-up (dummy %h, bosluk %0.2f us) + tek tarama + surekli tarama: %0s",
+             ok_noauto ? "evet" : "HAYIR", 16'hFFFF, pw_gap / 1000.0, ok_pu ? "dogru" : "YANLIS");
+    $display("    beklenen abort: %0d | model iptal: %0d", n_exp_abort - ab_t, u_adc.aborted - ab_before);
+    result(ok_pre && ok_now && ok_hold && ok_noauto && ok_pu &&
+           (u_adc.aborted - ab_before == n_exp_abort - ab_t) && (n_exp_abort - ab_t == 1), "T21 clock dururken reset");
+
+    // ===================================================================== T22
+    $display("\n--- T22 kisa reset (rst_n yalniz 1 clock aktif, frame ortasinda)");
+    ab_t = n_exp_abort; ab_before = u_adc.aborted;
+    ch_mask = 4'hF; continuous = 1'b1;
+    pulse_start; wait_more(6);
+    @(negedge spi_cs_n); #300; @(posedge clk); #1;
+    pos_a = n_posedge; rst_n = 1'b0; #1;
+    ok_now = drv_safe(0) && (spi_cs_n === 1'b1);
+    @(posedge clk); #1 rst_n = 1'b1;
+    nb = n_posedge - pos_a;
+    $display("    rst_n low suresi: %0d clock kenari | rst_n + 1 ns guvenli: %0s", nb, ok_now ? "evet" : "HAYIR");
+    i = n_busy_rise; cs_a = n_cs; dl_a = dl_n;
+    repeat (2000) @(posedge clk);
+    ok_noauto = (n_busy_rise == i) && (n_cs == cs_a) && (dl_n == dl_a) && drv_safe(0);
+    continuous = 1'b0; mark; pulse_start; wait_idle(200000.0);
+    ew(16'hFFFF); ew(cw(0,1,1)); ew(cw(1,1,1)); ew(cw(2,1,1)); ew(cw(3,1,1)); ew(cw(0,1,1));
+    ec(0); ec(1); ec(2); ec(3); cmp_mosi; cmp_ch; chk_sd_last(3);
+    ok_pu = ok_m && ok_c && ok_s && err === 1'b0 && (min_cs_t >= MIN_CYC);
+    continuous = 1'b1; mark; pulse_start; wait_out(12); stop_in_gap;
+    for (k = 0; k < dl_n - w_dl; k = k + 1) ec(k % 4);
+    cmp_ch; chk_sd_last(3); ok_pu = ok_pu && ok_c && ok_s && err === 1'b0;
+    $display("    reset sonrasi kendiliginden baslamadi: %0s | power-up + tek tarama + surekli tarama: %0s | beklenen abort %0d, model iptal %0d",
+             ok_noauto ? "evet" : "HAYIR", ok_pu ? "dogru" : "YANLIS", n_exp_abort - ab_t, u_adc.aborted - ab_before);
+    result(nb == 1 && ok_now && ok_noauto && ok_pu &&
+           (u_adc.aborted - ab_before == n_exp_abort - ab_t) && (n_exp_abort - ab_t == 1), "T22 kisa reset (1 clock)");
+    exp_abort_win = 1'b0;
+
     // ================================================================ özet
     $display("\n--- Genel olcumler");
     $display("    Frame suresi (ilk komut handshake -> sync_valid): min %0.0f ns, maks %0.0f ns (%0d frame)", ft_min, ft_max, n_ft);
@@ -706,13 +877,18 @@ module tb_ad7923_drv;
     $display("    Kanal register'lari: chN_valid toplam %0d/%0d/%0d/%0d | scan_done %0d", cv_cnt[0], cv_cnt[1], cv_cnt[2], cv_cnt[3], n_sd);
     $display("      chN_valid kanal/zaman hatasi: %0d | chN_data != data: %0d | valid'siz degisim: %0d | verisiz scan_done: %0d",
              e_chv, e_chd, e_chchg, e_sd);
+    $display("      chN_valid toplami + T20b'de reset ile kesilen veri (%0d) = toplam cikis: %0s", n_dv_cut,
+             (cv_cnt[0] + cv_cnt[1] + cv_cnt[2] + cv_cnt[3] + n_dv_cut == dl_n) ? "evet" : "HAYIR");
     $display("\n--- AD7923 timing kontrolleri (model)");
     u_adc.report; u_adc_bad.report;
+    $display("    Iptal edilen frame: %0d = T18 (1) + T20-T22 beklenen abort (%0d) | beklenmeyen: %0d",
+             u_adc.aborted, n_exp_abort, u_adc.aborted - 1 - n_exp_abort);
     $display("    Olculen: tSCLK min %0.0f ns | t2 min %0.0f ns | t11 min %0.0f ns | tQUIET min %0.0f ns",
              u_adc.min_tsclk, u_adc.min_t2, u_adc.min_t11, u_adc.min_quiet);
     i = u_adc.violations(0) + u_adc_bad.violations(0);
     if (i != 0 || min_cs_all < MIN_CYC || e_content != 0 || e_seq != 0 || ft_max > 1330.0 || ft_min < 1290.0 ||
-        e_chv != 0 || e_chd != 0 || e_chchg != 0 || e_sd != 0 || cv_cnt[0] + cv_cnt[1] + cv_cnt[2] + cv_cnt[3] != dl_n)
+        e_chv != 0 || e_chd != 0 || e_chchg != 0 || e_sd != 0 || cv_cnt[0] + cv_cnt[1] + cv_cnt[2] + cv_cnt[3] + n_dv_cut != dl_n ||
+        u_adc.aborted != 1 + n_exp_abort)
       n_fail = n_fail + 1;
     $display("\nTOPLAM: %0d test gecti, %0d kaldi | timing ihlali=%0d  ->  SONUC: %0s",
              n_pass, n_fail, i, (n_fail == 0) ? "BASARILI" : "BASARISIZ");

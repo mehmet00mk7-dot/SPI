@@ -15,6 +15,20 @@
 -- instantiate edilir (mixed-language). Çekirdek kullanım kuralları:
 --   sdi_data_ready = sync_ready = '1', echo_sclk = '0', sdo_t / three_wire açık,
 --   sdo doğrudan MOSI. Çekirdek reset'i = rst_n and not core_rst.
+--   (VHDL sürümünde bu AND, aşağıdaki p_core_resetn flop'u ile değiştirildi.)
+--
+-- RESET STRATEJİSİ
+--   * rst_n kaynağı: projedeki reset synchronizer. Async assert, sync deassert,
+--     PLL lock'a bağlı. Bu modülde async reset olarak YALNIZCA rst_n kullanılır.
+--   * Driver (ad7923_drv), kanal register'ları (ad7923_ch_regs) ve core (spi_exec)
+--     aynı rst_n'den beslenir. Driver ve ch_regs rst_n'yi doğrudan async reset
+--     olarak alır. Core'un resetn'i p_core_resetn flop'undan gelir: rst_n ile async
+--     assert (rst_n düşünce clock beklemeden core reset'te, spi_cs_n = '1'),
+--     deassert senkron.
+--   * core_rst (driver'ın SYNC timeout sonrası ürettiği core reset pulse'ı) senkron
+--     bir register'dır ve async reset olarak kullanılmaz: p_core_resetn'in D
+--     girişine gider, core'u bir clock gecikmeli ve senkron olarak reset'e sokar.
+--   * p_core_resetn bu geçişte değiştirilmedi (doğrulanmış core entegrasyonu).
 -- ============================================================================
 library ieee;
 use ieee.std_logic_1164.all;

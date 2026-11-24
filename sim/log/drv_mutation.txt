@@ -1,0 +1,15 @@
+D1_pwr_done_reset_degeri   MUTATION:   YAKALANDI (fark=372468, ilk fark clock 6318)
+      FARK: clock 6318 (t=63180 ns), rst_n=1, son reset kalkisindan 6308 clock sonra
+      cmd_valid  1 0
+D2_data_r_reset_eksik   MUTATION:   YAKALANDI (fark=34213, ilk fark clock 1)
+      FARK: clock 1 (t=10 ns), rst_n=0, son reset kalkisindan -1 clock sonra
+      data       000 xxx
+D3_cyc_soft_clear_kayip   MUTATION:   YAKALANDI (fark=371840, ilk fark clock 6552)
+      FARK: clock 6552 (t=65520 ns), rst_n=1, son reset kalkisindan 6542 clock sonra
+      cmd_valid  0 1
+D4_ch_regs_scan_done_reset   MUTATION:   YAKALANDI (fark=283, ilk fark clock 1)
+      FARK: clock 1 (t=10 ns), rst_n=0, son reset kalkisindan -1 clock sonra
+      scan_done  0 1
+0f43ab6934da043a9cffb5c9c142084823eb8a0ea6106dab9fe50f07053545f0  ../rtl/drv/ad7923_ch_regs.vhd
+debce5fb09974ec0544ea5dcb014e407523b52d5959b74545b47cb58fc9bec4b  ../rtl/drv/ad7923_drv.vhd
+4b61a93a9af6db8734502a0c70b4abaad0c6e4c197bb9f8d5513836f752a5e95  ../rtl/drv/ad7923_top.vhd

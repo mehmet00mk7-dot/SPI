@@ -1,5 +1,7 @@
-SONUCLAR - spi_exec (VHDL, async reset) dogrulamasi
+SONUCLAR - spi_exec (VHDL, async reset) + AD7923 driver (async reset) dogrulamasi
 Tarih: 2026-11-24  |  GHDL 4.1.0  |  Icarus Verilog version 12.0 (stable) ()
+Bolum 1-3: core (spi_exec) dogrulamasi, onceki teslimden (core degismedi, SHA-256 asagida).
+Bolum 4-9: driver async reset gecisi (rtl/drv): A, B, C, D dogrulamalari.
 
 == Orijinal ADI dosyalari (vendor/adi) SHA-256
 f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  spi_engine_execution.v
@@ -201,7 +203,9 @@ f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  spi_engine_exe
   M5_cs_activate_mask [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
   M5_cs_activate_mask [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
 
-== 4) AD7923 driver testleri, core = spi_exec (VHDL async)
+== 4) A: AD7923 driver testleri, driver = async reset (rtl/drv), core = spi_exec (VHDL async)
+  ./run_ad7923_drv_vhdl.sh 25.0 ve 40.0. T01-T19 mevcut testler (degistirilmedi), T20-T22 yeni.
+  Mevcut 19 test: 19/19 GECTI (her iki T_DOUT). Yeni 3 test: 3/3 GECTI. timing ihlali = 0.
   T_DOUT=25.0 ns:
       GECTI  T01 power-up (dummy + select) + 4 kanal
       GECTI  T02 tek tarama, 4 frame
@@ -222,9 +226,14 @@ f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  spi_engine_exe
       GECTI  T17 FIFO underflow -> durur, power-up yeniden
       GECTI  T18 rst_n abort + yeniden power-up
       GECTI  T19 mask 0101 -> yalniz ch0/ch2, scan_done ch2'de
-        AD7923[0]: cerceve=309 gecerli=308 gecersiz=1 iptal=1 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
-        AD7923[0]: cerceve=309 gecerli=308 gecersiz=1 iptal=1 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
-    TOPLAM: 19 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+      GECTI  T20 frame ortasinda async reset
+      GECTI  T21 clock dururken reset
+      GECTI  T22 kisa reset (1 clock)
+      chN_valid toplami + T20b'de reset ile kesilen veri (1) = toplam cikis: evet
+      AD7923[0]: cerceve=409 gecerli=408 gecersiz=1 iptal=4 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+      AD7923[0]: cerceve=409 gecerli=408 gecersiz=1 iptal=4 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+      Iptal edilen frame: 4 = T18 (1) + T20-T22 beklenen abort (3) | beklenmeyen: 0
+    TOPLAM: 22 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
   T_DOUT=40.0 ns:
       GECTI  T01 power-up (dummy + select) + 4 kanal
       GECTI  T02 tek tarama, 4 frame
@@ -245,6 +254,169 @@ f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  spi_engine_exe
       GECTI  T17 FIFO underflow -> durur, power-up yeniden
       GECTI  T18 rst_n abort + yeniden power-up
       GECTI  T19 mask 0101 -> yalniz ch0/ch2, scan_done ch2'de
-        AD7923[0]: cerceve=309 gecerli=308 gecersiz=1 iptal=1 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
-        AD7923[0]: cerceve=309 gecerli=308 gecersiz=1 iptal=1 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
-    TOPLAM: 19 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+      GECTI  T20 frame ortasinda async reset
+      GECTI  T21 clock dururken reset
+      GECTI  T22 kisa reset (1 clock)
+      chN_valid toplami + T20b'de reset ile kesilen veri (1) = toplam cikis: evet
+      AD7923[0]: cerceve=409 gecerli=408 gecersiz=1 iptal=4 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+      AD7923[0]: cerceve=409 gecerli=408 gecersiz=1 iptal=4 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+      Iptal edilen frame: 4 = T18 (1) + T20-T22 beklenen abort (3) | beklenmeyen: 0
+    TOPLAM: 22 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+  Not: "iptal=4" = T18'in 1 iptali (T18 kendisi kontrol eder) + T20-T22'de rst_n'nin CS low ve
+  < 16 SCLK iken dustugu 3 "beklenen abort". Bu aralik disindaki her iptal artik global olarak
+  hata sayilir (kontrol sikilasti; modelin kontrolleri gevsetilmedi).
+
+  Core'un degismedigini gosteren lockstep (./run_lockstep.sh 16 1 1 0 2 2 1 1 200000):
+  CONFIG DW=16 CS=1 SDI=1 DELAY=0 CFG=2 DIV=2 SDO_DEF=1 SEED=1
+    cycles=200000 karsilastirilan=199788 reset=12 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+    COV transfer=684 (none=163 W=184 R=186 RW=151) cs=423 cfg=170 div=83 wlen=134 reg11=21
+    COV sync=197 sleep=130 csinv=122 undef=69 | wait_for_io=210 sdi_words=1026 sync_hs=126
+  SONUC: BASARILI
+
+== 5) C: Yeni async reset testleri T20-T22 (ayrinti, T_DOUT=25.0)
+  --- T20 frame ortasinda async reset (SCLK aktif, posedge + 3 ns)
+        reset oncesi: busy=1 err=1 data_valid=0 scan_done=0 chN_valid=0000 data=c41 data_ch=3 chN_data=05d/44a/858/c41 | cs_n=0 sclk=1 mosi=1
+      reset oncesi: busy=1 err=1 CS low, SCLK aktif (5/16 bit), chN_data/data dolu: evet
+        rst_n + 1 ns: busy=0 err=0 data_valid=0 scan_done=0 chN_valid=0000 data=000 data_ch=0 chN_data=000/000/000/000 | cs_n=1 sclk=1 mosi=1
+      rst_n + 1 ns (son posedge'den 4 ns sonra, arada clock kenari 0): cikislar reset degerinde, cs_n=1, sclk=CPOL: evet
+      reset kalktiktan sonra 20 us: busy yukselme 0, CS 0, cikis 0 -> kendiliginden baslamadi: evet
+      start: ilk kelime ffff (dummy) | dummy CS yukselis -> sonraki CS: 3.88 us (>= 1 us) | MOSI/kanal/scan_done: dogru
+      T20b data_valid=1 iken reset: rst_n + 1 ns data_valid=0 data=000, sonraki kenarda chN_valid=0000 -> dogru
+      T20c scan_done=1 iken reset: rst_n + 1 ns scan_done=0 ch3_valid=0 chN_data=0: evet -> dogru
+      beklenen abort (CS low, < 16 SCLK iken reset): 1 | model iptal: 1
+    GECTI  T20 frame ortasinda async reset
+  
+  --- T21 clock dururken reset
+        clock durdu: busy=1 err=0 data_valid=0 scan_done=0 chN_valid=0000 data=452 data_ch=1 chN_data=06a/452/85f/c48 | cs_n=0 sclk=0 mosi=0
+      clock durdu (frame ortasi, 4/16 bit): CS low ve busy=1 donuk: evet
+        rst_n + 1 ns: busy=0 err=0 data_valid=0 scan_done=0 chN_valid=0000 data=000 data_ch=0 chN_data=000/000/000/000 | cs_n=1 sclk=1 mosi=1
+      clock yokken rst_n: 1 ns'de guvenli evet, 500 ns sonra hala guvenli evet (clock kenari: 0)
+      clock geri geldi: kendiliginden baslamadi evet | start: power-up (dummy ffff, bosluk 3.88 us) + tek tarama + surekli tarama: dogru
+      beklenen abort: 1 | model iptal: 1
+    GECTI  T21 clock dururken reset
+  
+  --- T22 kisa reset (rst_n yalniz 1 clock aktif, frame ortasinda)
+      rst_n low suresi: 1 clock kenari | rst_n + 1 ns guvenli: evet
+      reset sonrasi kendiliginden baslamadi: evet | power-up + tek tarama + surekli tarama: dogru | beklenen abort 1, model iptal 1
+    GECTI  T22 kisa reset (1 clock)
+
+  Ek kontrol (negatif): ayni tb_ad7923_drv, ESKI sync reset driver ile kosuldu
+  (rtl/drv'nin degisiklik oncesi hali): T01-T19 19/19 gecer, T20 / T21 / T22 KALIR
+  (rst_n + 1 ns'de busy/err/data/chN_data hala eski degerde; yalniz core async oldugu icin
+  spi_cs_n = 1). Yani yeni testler async reset'i gercekten olcuyor.
+
+  T20 gelistirme sirasinda bulunan uyusmazlik (kok neden, test gevsetilmedi):
+    Ilk kosuda T20-T22 GECTI ama global ozet "1 kaldi" verdi. Ilk farkli kontrol:
+    "chN_valid toplami (357) = toplam cikis (358)". Kok neden: T20b'de reset, data_valid = 1
+    olan clock'ta (posedge + 3 ns) veriliyor; ad7923_ch_regs o verinin chN_valid'ini 1 clk
+    sonra uretecekti, async reset bunu (beklendigi gibi) engelliyor. Tasarim dogru; TB'nin
+    global sayimi bu bilerek kesilen tek veriyi hesaba katmiyordu. Duzeltme: T20b'de kesilen
+    veri sayaci (n_dv_cut = 1) tutulur, global kontrol hala kesin esitlik:
+    sum(chN_valid) + n_dv_cut == toplam cikis.
+
+== 6) B: Driver lockstep, eski (sync, rtl/drv_sync_ref *_sref) <-> yeni (async, rtl/drv)
+  ./run_drv_lockstep.sh SEED 2000000, SEED = 1 2 3. Her tasarimin kendi AD7923 modeli var.
+  Her clock'un negedge'inde BUTUN top ciktilari + driver<->core arayuzu (cmd, cmd_valid,
+  cmd_ready, sdo_data, sdo_valid, sdo_ready, core_rst, core_resetn, sync, sync_valid,
+  sdi_valid, sdi_data) !== ile karsilastirilir. Atlanan tek aralik: rst_n'nin dustugu an ->
+  rst_n = 0 iken ilk posedge (sync referans henuz reset gormedi); bu aralikta async DUT'un
+  reset degerinde oldugu ayrica kontrol edilir ("async reset kontrol"). Reset sirasinda ve
+  reset kalktigi clock'tan itibaren her clock karsilastirilir.
+  SEED=1 CYCLES=2000000
+  kapsama: start pulse=678 (kabul=295) stop=136 (busy iken 54) continuous degisim=143 surekli tarama=263
+           mask degisim=247 (busy iken 106, 0000=29) period degisim=88 range/coding degisim=827
+           err=32 core_rst=7 scan_done=451 data_valid=1039 dummy(power-up) frame=66 ERR_LIMIT durus=3
+           rst_n pulse=59 (frame icinde 4) | enjeksiyon: frame=22 burst=1 timeout=8 underflow=4 sync_id=5
+    AD7923[0]: cerceve=1311 gecerli=1310 gecersiz=1 iptal=3 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+    AD7923[0]: cerceve=1311 gecerli=1310 gecersiz=1 iptal=3 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+  clock=2000002 karsilastirilan=1999942 atlanan(reset assert -> ilk posedge)=59 | FARK=0 (ilk: clock -1) | async reset kontrol=59 hata=0
+  SONUC: BASARILI
+  SEED=2 CYCLES=2000000
+  kapsama: start pulse=637 (kabul=267) stop=127 (busy iken 56) continuous degisim=162 surekli tarama=240
+           mask degisim=278 (busy iken 113, 0000=52) period degisim=110 range/coding degisim=815
+           err=31 core_rst=2 scan_done=405 data_valid=800 dummy(power-up) frame=52 ERR_LIMIT durus=3
+           rst_n pulse=45 (frame icinde 2) | enjeksiyon: frame=13 burst=2 timeout=4 underflow=6 sync_id=11
+    AD7923[0]: cerceve=1028 gecerli=1027 gecersiz=1 iptal=2 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+    AD7923[0]: cerceve=1028 gecerli=1027 gecersiz=1 iptal=2 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+  clock=2000002 karsilastirilan=1999956 atlanan(reset assert -> ilk posedge)=45 | FARK=0 (ilk: clock -1) | async reset kontrol=45 hata=0
+  SONUC: BASARILI
+  SEED=3 CYCLES=2000000
+  kapsama: start pulse=684 (kabul=287) stop=132 (busy iken 49) continuous degisim=173 surekli tarama=219
+           mask degisim=262 (busy iken 105, 0000=45) period degisim=89 range/coding degisim=799
+           err=34 core_rst=4 scan_done=410 data_valid=838 dummy(power-up) frame=51 ERR_LIMIT durus=4
+           rst_n pulse=37 (frame icinde 4) | enjeksiyon: frame=20 burst=2 timeout=8 underflow=8 sync_id=7
+    AD7923[0]: cerceve=1083 gecerli=1082 gecersiz=1 iptal=4 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+    AD7923[0]: cerceve=1083 gecerli=1082 gecersiz=1 iptal=4 | ihlal: fSCLK=0 tQUIET=0 5us=0 t2=0 t3=0 t11=0 CPOL=0
+  clock=2000002 karsilastirilan=1999964 atlanan(reset assert -> ilk posedge)=37 | FARK=0 (ilk: clock -1) | async reset kontrol=37 hata=0
+  SONUC: BASARILI
+  TOPLAM: 3 seed x 2.000.000 clock, karsilastirilan 5.999.862 clock, FARK = 0,
+          rastgele rst_n pulse = 141, async reset kontrol = 141 (hata 0).
+
+  Mutation (./run_drv_mutation.sh 400000 1): async driver kopyasina bilerek hata konur,
+  rtl/drv'ye dokunulmaz; kosu sonunda kopya silinir (hatalar geri alinmis), rtl/drv SHA-256
+  kosu oncesi/sonrasi ayni.
+    D1 reset degeri yanlis     : p_ctrl pwr_done reset '1' (power-up atlanir)
+    D2 eksik reset              : p_out data_r async reset listesinden dusmus
+    D3 soft clear kaybi         : p_cyc'de frm_launch ile cyc_cnt sifirlama unutulmus
+    D4 ch_regs reset degeri     : p_regs scan_done_r reset '1'
+  D1_pwr_done_reset_degeri   MUTATION:   YAKALANDI (fark=372468, ilk fark clock 6318)
+        FARK: clock 6318 (t=63180 ns), rst_n=1, son reset kalkisindan 6308 clock sonra
+        cmd_valid  1 0
+  D2_data_r_reset_eksik   MUTATION:   YAKALANDI (fark=34213, ilk fark clock 1)
+        FARK: clock 1 (t=10 ns), rst_n=0, son reset kalkisindan -1 clock sonra
+        data       000 xxx
+  D3_cyc_soft_clear_kayip   MUTATION:   YAKALANDI (fark=371840, ilk fark clock 6552)
+        FARK: clock 6552 (t=65520 ns), rst_n=1, son reset kalkisindan 6542 clock sonra
+        cmd_valid  0 1
+  D4_ch_regs_scan_done_reset   MUTATION:   YAKALANDI (fark=283, ilk fark clock 1)
+        FARK: clock 1 (t=10 ns), rst_n=0, son reset kalkisindan -1 clock sonra
+        scan_done  0 1
+
+== 7) D: Yapisal kontrol (GHDL synth netlist, ./run_flop_check.sh)
+  check_flops.py her always @(posedge clk ...) blogunun async reset net'ini inverter / net /
+  port baglantilari uzerinden geriye izler.
+  always blokları (sensitivity, adet):
+       89 always @(posedge clk or posedge <net>)
+  Netlist: build/flopchk_2068/ad7923_top_net.v | top: ad7923_top
+  instance                     flop grubu   bit  async reset kaynağı
+  ad7923_top                            1     1  posedge clk or posedge <rst_n (doğrudan, ~rst_n)>
+  ad7923_top.u_drv                     42   159  posedge clk or posedge <rst_n (doğrudan, ~rst_n)>
+  ad7923_top.u_regs                     3    53  posedge clk or posedge <rst_n (doğrudan, ~rst_n)>
+  ad7923_top.u_spi                     35   102  posedge clk or posedge <rst_n -> p_core_resetn flop'u (ad7923_top:n81_q)>
+  ad7923_top.u_spi.u_shiftreg           8    76  posedge clk or posedge <rst_n -> p_core_resetn flop'u (ad7923_top:n81_q)>
+  TOPLAM                               89   391
+  Düz "always @(posedge clk)" (reset'siz) flop: 0 grup, 0 bit
+  Onaylı reset'siz register: yok
+  Kaynağı rst_n'ye izlenemeyen / türetilmiş async reset: 0
+  Başka edge-sensitive blok: 0 
+  Driver / ch_regs / top flop'larında doğrudan rst_n dışı async reset: 0
+  YAPISAL KONTROL: BASARILI
+  Sonuc: ad7923_top altindaki 89 flop grubunun (391 bit) hepsi "posedge clk or posedge <rst_n'den
+  tureyen>". Driver + ch_regs + p_core_resetn: dogrudan ~rst_n. Core: ~core_resetn, core_resetn =
+  p_core_resetn flop'u (async reset ~rst_n): kural 5'te izin verilen, degistirilmeyen yol.
+  Duz "posedge clk" flop: 0. Onayli reset'siz register: yok.
+  Toplam flop biti degismedi: eski driver'la 179 async + 212 duz = 391 bit; yeni: 391 async.
+  Negatif kontroller: eski sync driver -> "Duz flop: 45 grup, 212 bit, BASARISIZ";
+  p_out'a "rst_n = '0' or core_rst_r = '1'" konmus kopya -> "KOMBINASYONEL(n.. | core_rst_r),
+  BASARISIZ". Kontrol araci her iki hatayi da yakaliyor.
+
+== 8) SHA-256 (vendor/adi, rtl/async, rtl/p1) - isin basinda (sim/hash/sha256_bas.txt)
+  6ae7c45895dd43c5ddb8b204640760bb48b86d6b6ab205832828a80e06c47ad8  rtl/async/spi_exec.vhd
+  4822232894f0d3226b10307b87c1402cde1ec0bb8d05c28c4b3c49a13604cec7  rtl/async/spi_exec_shiftreg.vhd
+  1ca4b8fcecfd72777cbe654f2033c996410418677dba450649c3f018d0b1dc03  rtl/p1/spi_exec_p1.vhd
+  d750a860bfb4937b2e4277a0bb279ac51fc3ca2d0e823dbfc6d5ad1103a01bd9  rtl/p1/spi_exec_p1_shiftreg.vhd
+  f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  vendor/adi/spi_engine_execution.v
+  70868cc989cda94ffe54bed3e99fa86520bc812980564003c7f64621c9233460  vendor/adi/spi_engine_execution_shiftreg.v
+   isin sonunda (sim/hash/sha256_son.txt)
+  6ae7c45895dd43c5ddb8b204640760bb48b86d6b6ab205832828a80e06c47ad8  rtl/async/spi_exec.vhd
+  4822232894f0d3226b10307b87c1402cde1ec0bb8d05c28c4b3c49a13604cec7  rtl/async/spi_exec_shiftreg.vhd
+  1ca4b8fcecfd72777cbe654f2033c996410418677dba450649c3f018d0b1dc03  rtl/p1/spi_exec_p1.vhd
+  d750a860bfb4937b2e4277a0bb279ac51fc3ca2d0e823dbfc6d5ad1103a01bd9  rtl/p1/spi_exec_p1_shiftreg.vhd
+  f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  vendor/adi/spi_engine_execution.v
+  70868cc989cda94ffe54bed3e99fa86520bc812980564003c7f64621c9233460  vendor/adi/spi_engine_execution_shiftreg.v
+  Karsilastirma: AYNI (diff bos).
+
+== 9) Questa
+  sim/run_questa_ad7923_drv_vhdl.do'ya rtl/drv_sync_ref/*_sref.vhd ve tb/tb_drv_lockstep.v
+  eklendi; batch modda tb_ad7923_drv'den sonra tb_drv_lockstep 3 seed x 2.000.000 clock kosar.
+  Bu ortamda Questa yok: .do ve TB'nin QUESTA dali (SignalSpy) kosulmadi, Questa kosusu acik.
