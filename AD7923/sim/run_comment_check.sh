@@ -10,8 +10,12 @@ REV=${1:-HEAD}
 B=build/cmtchk_$$; mkdir -p $B/old
 FILES="rtl/async/spi_exec_shiftreg.vhd rtl/async/spi_exec.vhd rtl/drv/ad7923_drv.vhd rtl/drv/ad7923_ch_regs.vhd rtl/drv/ad7923_top.vhd"
 ARGS=""
+# Proje klasörünün repo içindeki yolu (ör. "AD7923/"). Eski revizyonlarda dosyalar repo
+# kökündeydi; önce yeni yol, bulunamazsa eski (kök) yol denenir.
+PRE=$(git rev-parse --show-prefix); PRE=${PRE%sim/}
 for f in $FILES; do
-  mkdir -p $B/old/$(dirname $f); git show $REV:$f > $B/old/$f
+  mkdir -p $B/old/$(dirname $f)
+  git show "$REV:$PRE$f" > $B/old/$f 2>/dev/null || git show "$REV:$f" > $B/old/$f
   ARGS="$ARGS $B/old/$f ../$f"
 done
 set +e
