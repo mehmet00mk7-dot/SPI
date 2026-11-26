@@ -1,9 +1,9 @@
 // ============================================================================
 // tb_drv_lockstep.v  -  Eski (sync reset) <-> yeni (async reset) AD7923 driver lockstep
 //
-//   u_ref : ad7923_top_sref  (rtl/drv_sync_ref: async geçişinden önceki driver, sync reset)
-//   u_dut : ad7923_top       (rtl/drv: async reset driver)
-//   İkisi de aynı core'u (rtl/async/spi_exec) kullanır; her birinin KENDİ AD7923 modeli var.
+//   u_ref : ad7923_top_sref  (tb/sync_ref: async geçişinden önceki driver, sync reset)
+//   u_dut : ad7923_top       (rtl: async reset driver)
+//   İkisi de aynı core'u (common/rtl/async/spi_exec) kullanır; her birinin KENDİ AD7923 modeli var.
 //
 // Uyarım (iki tasarıma aynı):
 //   * Kontrol girişleri (start, stop, continuous, ch_mask, period_us, range_sel,

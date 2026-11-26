@@ -1,83 +1,124 @@
-# spi_exec: ADI spi_engine_execution'ın VHDL çevirisi (async reset) + AD7923 driver (async reset)
+# AD7923: 4 kanal, 12 bit, 200 kSPS SAR ADC SPI driver'ı
 
-Kaynak: ADI HDL `hdl_2026_r1`, commit `b62abef`, `spi_engine_execution.v` + `spi_engine_execution_shiftreg.v`.
-Orijinal dosyalar `common/vendor/adi/` altında, değiştirilmeden duruyor:
+## Amaç
+CPU'suz FADEC sensör okuma sisteminin (Microchip PolarFire) SPI tarafında AD7923'ün 4 analog
+kanalını tarayan driver. Driver ortak SPI master core'u `common/rtl/async/spi_exec` ile entegreyi
+power-up eder, seçilen kanalları sırayla çevirir, her sonucun format ve kanal adresini kontrol
+eder ve sonucu düz sinyallerle verir: valid pulse + veri, ayrıca kanal başına kalıcı register.
+Board test tarafı driver'ı start, stop ve ayarlarla sürer (AXI yok).
 
-| Dosya | SHA-256 |
+Datasheet: AD7923 Rev. D. PDF bu repo'da yok (açık işler). Model ve RTL referansları Rev. D'nin
+tablo ve şekillerine göre (`tb/ad7923_model.v` başlığı).
+Blok diyagram: `docs/ad7923_spi_blok_diyagram.drawio` (5 sayfa, `python3 -I docs/gen_drawio.py`).
+Sunum notları: `docs/KONUSMA_NOTLARI.md`. Ortak core'un çevirisi ve doğrulaması: `../common/README.md`.
+
+## Dosyalar
+| Dosya | İçerik |
 |---|---|
-| spi_engine_execution.v | f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86 |
-| spi_engine_execution_shiftreg.v | 70868cc989cda94ffe54bed3e99fa86520bc812980564003c7f64621c9233460 |
+| `rtl/ad7923_drv.vhd` | Driver: kontrol FSM'i, kanal seçici, timer'lar, packer, expectation FIFO, RX kontrolü |
+| `rtl/ad7923_ch_regs.vhd` | Kanal başına sonuç register'ları (chN_data, chN_valid) ve scan_done |
+| `rtl/ad7923_top.vhd` | Driver + ch_regs + `spi_exec` + `p_core_resetn`; gnt = '1' |
+| `tb/ad7923_model.v` | AD7923 modeli: kanal pipeline'ı, power-up, DOUT formatı, timing kontrolleri |
+| `tb/tb_ad7923_drv.v` | T01–T22 |
+| `tb/tb_drv_lockstep.v`, `tb/sync_ref/` | Async geçişinden önceki sync reset driver (referans, ürüne girmez) ↔ güncel driver lockstep'i |
+| `sim/run_ad7923_drv_vhdl.sh` | GHDL synth → Icarus. Argüman: `[T_DOUT]` (MISO gecikme köşesi) |
+| `sim/run_drv_lockstep.sh`, `sim/run_drv_mutation.sh` | Driver lockstep (sync ref ↔ async) ve mutation (4 hata) |
+| `sim/run_flop_check.sh`, `sim/check_flops.py` | Netlist flop yapısı |
+| `sim/run_comment_check.sh`, `sim/check_comment_only.py` | "Yalnız yorum değişti" kontrolü (token + netlist) |
+| `sim/run_questa_ad7923_drv_vhdl.do` | Questa akışı |
+| `sim/SONUCLAR.txt`, `sim/log/` | Sonuçlar; `sim/log/hash_gecmis/` eski SHA listeleri (geçmiş kaydı) |
 
-## Klasörler
+## Arayüz (`ad7923_top`)
+**Girişler** (clk ile senkron)
+| Sinyal | Genişlik | Anlam |
+|---|---|---|
+| clk, rst_n | 1 | 100 MHz; async aktif-düşük reset (reset synchronizer'dan) |
+| start | 1 | IDLE'da tarama başlatır (ch_mask ≠ 0000). busy iken yok sayılır |
+| stop | 1 | Çalışan frame biter (≤ 1 frame), sonra IDLE |
+| continuous | 1 | 1: tarama period_us aralıkla tekrarlanır |
+| ch_mask | 4 | Taranacak kanallar; tarama sınırında örneklenir |
+| period_us | 16 | Sürekli modda tarama başları arası µs; 0 = beklemesiz |
+| range_sel | 1 | AD7923 RANGE: 1 = 0..REFIN, 0 = 0..2×REFIN |
+| coding_sel | 1 | AD7923 CODING: 1 = binary, 0 = ikiye tümleyen |
 
-SPI master core bütün driver'larda ortak kullanıldığı için repo kökündeki `common/` altına
-taşındı (yollar repo köküne göre):
+**Çıkışlar**
+| Sinyal | Genişlik | Anlam |
+|---|---|---|
+| data_valid | 1 | 1 clk: data / data_ch geçerli |
+| data_ch | 2 | Verinin kanalı |
+| data | 12 | 12 bit sonuç (DB11..DB0) |
+| ch0..3_data | 12 | Kanal başına son sonuç (kalıcı) |
+| ch0..3_valid | 1 | İlgili kanal güncellendi (1 clk) |
+| scan_done | 1 | Tarama tamamlandı (1 clk) |
+| busy | 1 | IDLE dışı |
+| err | 1 | Sticky hata; yeni start ile temizlenir |
+| spi_sclk, spi_mosi, spi_cs_n, spi_miso | | AD7923 SCLK (Mode 2, boşta '1'), DIN, CS, DOUT |
 
-| Klasör | İçerik |
+**Generic'ler** (top: CLK_DIV, CS_T; diğerleri driver içinde)
+| Generic | Varsayılan | Not |
+|---|---|---|
+| CLK_DIV | 2 | SCLK 16,7 MHz (≤ 20 MHz) |
+| CS_T | 1 | CS komutundaki bekleme |
+| CLKS_PER_US | 100 | 100 MHz |
+| CYCLE_CLKS | 500 | CS düşen kenarları arası ≥ 5 µs (200 kSPS) |
+| PWRUP_CLKS | 100 | dummy frame sonrası 1 µs power-up |
+| SYNC_TO_CLKS / CORE_RST_CLKS | 1000 / 4 | SYNC timeout 10 µs, core_rst pulse |
+| ERR_LIMIT | 4 | art arda hatalı tarama |
+| SPI_MODE / WORD_LEN / CS_IDX | 2 / 16 / 0 | Mode 2 (CPOL = 1, CPHA = 0), 16 bit kelime |
+
+## Mimari
+```
+start/stop/mask --> Control FSM --frm_go--> Command packer --cmd/sdo--> spi_exec --> AD7923
+                        ^                        |  ^
+                        |                 launch |  | sync (frm_done)
+                        |                        v  |
+data/data_valid <-- RX checker <-- Expectation FIFO <-- sdi_data <-- spi_exec
+       |
+       v
+ad7923_ch_regs --> chN_data / chN_valid / scan_done
+```
+- **AD7923 kanal pipeline'ı:** AD7923, CS düşen kenarında bir önceki tam frame'de DIN ile yazılan
+  kanalı çevirir. Her ölçüm frame'inde o anki kanal çevrilir (DOUT) ve sıradaki kanal yazılır (DIN).
+  Power-up'ta önce 0xFFFF dummy frame + 1 µs, sonra gerekirse select frame gelir; bunların sonucu
+  atılır.
+- **Expectation FIFO:** Her launch'ta o frame'de dönecek sonucun beklentisi (kanal, son mu, atılacak
+  mı) yazılır, sdi geldiğinde okunur.
+- **RX checker:** DOUT[15:14] = 00 ve DOUT[13:12] = beklenen kanal olmalı. Aksi veri hatasıdır.
+
+## FSM
+| Durum | İş |
 |---|---|
-| `common/rtl/async/` | **Kullanılacak core sürümü.** `spi_exec.vhd`, `spi_exec_shiftreg.vhd`: async reset |
-| `common/rtl/p1/` | Ara adım: birebir çeviri, sync reset (`spi_exec_p1*`). Yalnız doğrulama zinciri için |
-| `common/vendor/adi/` | Orijinal ADI Verilog (read-only, referans) |
-| `common/tb/` | `tb_lockstep.v` (orijinal ↔ VHDL core) |
-| `common/sim/` | Core doğrulama script'leri: `run_lockstep.sh`, `run_matrix.sh`, `run_mutation.sh`, `run_sha_check.sh`, `hash/sha256_core.txt` |
+| ST_IDLE | start bekler (mask ≠ 0000) |
+| ST_PWR_DUMMY / ST_PWR_WAIT | Power-up: DIN = 0xFFFF dummy frame, ardından 1 µs |
+| ST_SCAN_START | Tarama tetiği; period referansı sıfırlanır, select gerekir mi |
+| ST_SELECT | Select frame: ilk kanal yazılır, sonuç atılır |
+| ST_MEAS | Ölçüm frame'leri (her biri bir kanal) |
+| ST_SCAN_END | Tarama sınırı: hata sayacı, yeni mask / period örneklenir |
+| ST_PERIOD_WAIT | Sürekli modda period bekleme |
+| ST_CORE_RST | SYNC timeout sonrası core_rst pulse'ı |
 
-AD7923'e ait olanlar (`AD7923/` altında):
+Packer: PK_IDLE → PK_CMD (7 komut) → PK_WAIT (SYNC). Ayrıntı: diyagram sayfa 3.
 
-| Klasör | İçerik |
-|---|---|
-| `rtl/drv/` | AD7923 driver + `ad7923_top.vhd` (core olarak `spi_exec` kullanır). **Async reset** |
-| `rtl/drv_sync_ref/` | Async geçişinden önceki sync reset driver'ın kopyası, entity adları `_sref`. Yalnız lockstep referansı; ürün akışına girmez |
-| `tb/` | `tb_ad7923_drv.v` (driver testleri T01–T22), `tb_drv_lockstep.v` (sync ↔ async driver), AD7923 modeli |
-| `sim/` | Çalıştırma script'leri, Questa `.do`, `check_flops.py`, `check_comment_only.py`, sonuç dosyaları, `hash/` (SHA-256 listeleri) |
-| `docs/` | `ad7923_spi_blok_diyagram.drawio` (blok diyagram, 5 sayfa) ve onu üreten `gen_drawio.py` |
+## Paket (frame)
+`2002 2102 2210 11FE 0300 11FF 30nn`: CONFIG clk_div 2, CONFIG mode 2, CONFIG word length 16,
+CS aktif, TRANSFER 16 bit okuma + yazma, CS pasif, SYNC id.
+- MOSI kelimesi AD7923 control register'ıdır: WRITE = 1, SEQ = 0, ADD = kanal, PM = 11 (normal),
+  SHADOW = 0, RANGE, CODING.
+- MISO kelimesi: 00, ADD1..0, DB11..DB0.
+- Ölçülen (T_DOUT 25 ns): frame 1300 ns, CS low 1120 ns, CS düşen kenarları arası ≥ 5,00 µs.
+  4 kanallı tarama ~20 µs.
+- Model ölçümü: tSCLK min 60 ns, t2 min 120 ns, t11 min 23 ns, tQUIET min 3880 ns.
 
-## Nasıl yapıldı
+## Hatalar
+- **Veri hatası** (format / adres): Örnek basılmaz, err sticky, tarama kesilir, sonraki tarama
+  select frame ile yeniden hizalanır. Art arda ERR_LIMIT hatalı taramada driver durur.
+- **Yapısal hata** (SYNC timeout, SYNC id, FIFO underflow): Driver hemen durur. Timeout'ta core,
+  core_rst ile reset'lenir. Sonraki start power-up'ı tekrarlar.
+- err yeni start ile temizlenir.
 
-1. **Birebir çeviri (`spi_exec_p1`).** Her Verilog `always` bloğu bir VHDL process'i oldu.
-   Process başlarında kaynak satır aralığı yazıyor (ör. `Kaynak: execution.v 270-278`).
-   Verilog'un genişlik kuralları (32 bit unsized literal, kırpılan concatenation, büyük shift)
-   birebir kopyalandı. Orijinal hatalar da kopyalandı (SLEEP n = 255 hang).
-2. **Async reset sürümü (`spi_exec`).** P1'in üzerine:
-   - Bütün register'lar `process(clk, resetn)` ile async reset. Initial value yok.
-   - Reset değerleri, orijinalin "reset + birkaç clock" sonundaki durumu. Reset kalktıktan
-     sonra davranış orijinalle birebir aynı.
-   - Pin çıkışları reset anında, clock beklemeden güvenli değerde:
-     `cs` hepsi '1', `sclk` = CPOL, `sdo` = SDO_DEFAULT, `sdo_t` = '1'.
-3. **ECHO_SCLK.** Desteklenmiyor (bizde 0). VHDL büyük/küçük harf ayırmadığı için
-   `ECHO_SCLK` generic'i `echo_sclk` port'uyla çakışıyor; generic yok, davranış ECHO_SCLK = 0.
-   Generic/port listesi `ad7923_top`'taki eski component ile aynı.
-
-## Doğrulama
-
-**1) Lockstep (common/sim/run_lockstep.sh, run_matrix.sh).** Orijinal Verilog, P1 ve async sürüm aynı
-girişlerle sürülür; her clock'ta bütün çıkışlar (cmd_ready, sdo_data_ready, sdi_data_valid,
-sdi_data, sync_valid, sync, sclk, sdo, sdo_t, cs, three_wire) karşılaştırılır.
-- Rastgele ama yasal komut akışı: 5 komut tipinin hepsi, tanımsız kodlar, kullanılmayan
-  bitlerde gürültü; SDO/SDI/SYNC backpressure; komutlar arası rastgele boşluk; rastgele reset.
-- 8 konfigürasyon: DATA_WIDTH 8/16/24/32, NUM_OF_CS 1/2/4/8, NUM_OF_SDI 1/2, SDI_DELAY 0..3,
-  4 SPI modu + three_wire, CLK_DIV 0..3, SDO_DEFAULT 0/1. AD7923 konfigürasyonu dahil.
-- Yönlendirilmiş test: SLEEP 255 → üç model de hang (orijinal hata, birebir).
-
-**2) Kısa async reset (RST_MODE=1).** Async core'a 1–2 clock'luk, clock kenarına denk gelmeyen
-reset verilir; orijinal uzun reset alır. Kontroller:
-- Reset düştükten 0,5 ns sonra async çıkışlar güvenli değerde mi?
-- Reset kalktıktan sonra async core orijinalle birebir aynı mı?
-- Clock dururken reset: çıkışlar clock olmadan güvenli mi?
-
-**3) Mutation (common/sim/run_mutation.sh).** VHDL'e bilerek 5 küçük hata konur
-(CPHA, last_transfer, SDI_DELAY indeksi, SLEEP karşılaştırması, cs_activate maskesi).
-Lockstep hepsini yakalamalı.
-
-**4) AD7923 entegrasyonu (sim/run_ad7923_drv_vhdl.sh).** `ad7923_top` core olarak `spi_exec` ile;
-mevcut 19 driver testi + AD7923 timing kontrolleri.
-
-Sonuçlar: `sim/SONUCLAR.txt`.
-
-## Driver async reset geçişi (rtl/drv)
-
-Ekip standardı gereği driver da async reset'e geçti. Port'lar, generic'ler ve normal çalışmadaki
-davranış aynı; değişen tek şey reset'in tipi. Core (`common/vendor/adi`, `common/rtl/async`,
-`common/rtl/p1`) değişmedi (SHA-256 başta/sonda aynı: `sim/hash/`).
+## Reset stratejisi (async reset geçişi)
+Ekip standardı gereği driver async reset'e geçti. Port'lar, generic'ler ve normal çalışmadaki
+davranış eski sync sürümle aynı; değişen tek şey reset'in tipi.
 
 **Reset stratejisi.** `rst_n`, projedeki reset synchronizer'dan gelir: async assert, sync
 deassert, PLL lock'a bağlı. Driver, ch_regs ve core aynı `rst_n`'den beslenir. Driver ve
@@ -107,109 +148,53 @@ olur. Clock yokken de böyledir. Reset kalktıktan sonra davranış eski sürüm
 aynı. Driver kendiliğinden başlamaz; start gelince power-up (0xFFFF dummy frame + ≥ 1 µs)
 tekrarlanır.
 
-**Doğrulama (ayrıntı: `sim/SONUCLAR.txt` bölüm 4–9):**
-- A. `run_ad7923_drv_vhdl.sh` 25.0 / 40.0: mevcut 19 test 19/19, yeni 3 test 3/3, timing ihlali 0.
-  Core lockstep (`run_lockstep.sh 16 1 1 0 2 2 1 1 200000`) BAŞARILI.
-- B. `run_drv_lockstep.sh`: eski sync driver (`*_sref`) ↔ yeni async driver, her birinin kendi
-  AD7923 modeli. Rastgele yasal kontrol girişleri, rastgele rst_n pulse'ları (sync assert, ≥ 8 clk),
-  hata enjeksiyonu (frame bozma, ERR_LIMIT burst'ü, SYNC timeout → core_rst, FIFO underflow,
-  SYNC id). Her clock'ta bütün çıkışlar ve driver ↔ core arayüzü karşılaştırılır. 3 seed ×
-  2.000.000 clock: FARK 0. Kapsama sayaçları: start, stop, continuous, mask değişimi, err,
-  core_rst, scan_done ve diğerleri. `run_drv_mutation.sh`: 4 mutation'ın 4'ü de yakalandı
-  (reset değeri, eksik reset, soft clear kaybı, ch_regs reset değeri).
-- C. Yeni testler (`tb_ad7923_drv.v`):
-  - **T20.** Frame ortasında, SCLK aktifken posedge + 3 ns'de `rst_n`. 1 ns'de bütün çıkışlar
-    reset değerinde ve spi_cs_n = 1. Kendiliğinden başlamıyor, start ile power-up yeniden.
-    Ek olarak data_valid = 1 ve scan_done = 1 iken reset de deneniyor.
-  - **T21.** Clock durmuşken (frame ortası) `rst_n`. Çıkışlar ve CS clock olmadan güvenli.
-    Clock geri gelince tek tarama ve sürekli tarama çalışıyor.
-  - **T22.** 1 clock'luk `rst_n` frame ortasında. Ardından normal tarama.
-
-  Reset'in yarıda kestiği frame'ler yalnız T20–T22'de "beklenen abort" sayılır. Bunun dışında
-  kalan her iptal (T18'in kendi 1 iptali hariç) artık global hata. Aynı testler eski sync
-  driver ile koşulunca T20–T22 kalıyor.
-- D. `run_flop_check.sh` (`check_flops.py`): GHDL synth netlist'inde ad7923_top altındaki 89 flop
-  grubunun hepsi `posedge clk or posedge <rst_n'den türeyen>`. Driver, ch_regs ve top'ta reset
-  doğrudan ~rst_n. Core'da ~core_resetn (p_core_resetn flop'u, onaylı yol). Düz `posedge clk`
-  flop 0.
-
-## Kod yorumları ve blok diyagram
-
-`rtl/drv` (3 dosya) ve `common/rtl/async` (2 dosya), Türkçe açıklama yorumlarıyla zenginleştirildi
-(teknik terimler İngilizce). Eklenenler: genel akış ve blok yapısı, AD7923 kanal pipeline'ı,
-komut formatı, SPI zamanlaması, FSM durumları, process ve sinyal açıklamaları.
-**Kod değişmedi.** Bunu iki kontrol gösteriyor (`sim/run_comment_check.sh REV`):
-- yorumlar atılınca token dizisi ve kod satırları önceki sürümle birebir aynı,
-- ad7923_top'un GHDL netlist'i, kaynak satır yorumları hariç birebir aynı.
-
-Testlerin hepsi yeniden koşuldu ve sonuçlar aynı çıktı (`sim/SONUCLAR.txt` bölüm 10).
-rtl/async'e yalnız yorum eklendiği için SHA-256'sı değişti; güncel liste
-`sim/hash/sha256_yorum.txt` dosyasında (core taşındıktan sonra: `common/sim/hash/sha256_core.txt`).
-vendor/adi ve rtl/p1 değişmedi.
-
-Blok diyagram: `docs/ad7923_spi_blok_diyagram.drawio` (draw.io / diagrams.net ile açılır).
-1. ad7923_top: bağlantılar, reset yolu, AD7923 pin'leri
-2. ad7923_drv iç blokları
-3. Control FSM ve packer FSM
-4. spi_exec control path
-5. spi_exec_shiftreg data path
-
-Diyagram `python3 docs/gen_drawio.py` ile yeniden üretilir.
-
-## Orijinalden farklar (bilinçli, yalnız reset ile ilgili)
-
-| ID | Fark | Neden |
-|---|---|---|
-| D1 | Bütün register'lar async reset alıyor (orijinalde cmd_d1, sdo_enabled, sdi_enabled, pending_sdi_data_valid, counter'lar, pin çıkış register'ları, shift register'lar, RX delay line reset'siz) | Ekip standardı; initial value'a ve reset sırasında clock'a bağımlılık yok |
-| D2 | Pin çıkışları reset anında güvenli (orijinalde ilk clock kenarında, sclk/sdo/sdo_t için 2 kenar) | Clock yokken de CS pasif |
-| D3 | SDI shift register doğrudan resetn ile temizleniyor (orijinalde reset sırasında cs_activate = 1 + clock kenarı) | Async reset'te clock beklenmez |
-| D4 | Reset sonrası ilk komuta kadar: orijinalin bazı çıkışları reset'siz register'lara (X / eski değer) bağlı olabilir; async sürümde tanımlı | D1'in sonucu. Lockstep karşılaştırması reset sonrası ilk komuttan (CONFIG) itibaren başlar |
-
-Bilerek **korunan** orijinal davranışlar: SLEEP n = 255 hang, word_length sınır kontrolü yok,
-timeout yok, sdi_data latch'lenmiyor. Bunların düzeltilmesi ayrı bir adım (P2) olarak planlı.
-
-## Entegrasyonda değişen iki satır (rtl/drv/ad7923_top.vhd)
-
+## Entegrasyonda değişen iki satır (`rtl/ad7923_top.vhd`)
 1. Component adı: `spi_engine_execution` → `spi_exec`.
 2. Core reset'i: `core_resetn <= rst_n and not core_rst` (kombinasyonel) yerine register'lı:
    rst_n ile async assert, `core_rst` ile bir clock gecikmeli senkron. Async reset hattı
    kombinasyonel mantıktan gelmemeli (glitch).
 
+## Doğrulama özeti (ayrıntı: `sim/SONUCLAR.txt`)
+| Test | Ne kontrol eder |
+|---|---|
+| T01–T03 | Power-up (dummy + select) ve 4 kanal; tek tarama 4 frame; select frame sonucu basılmıyor |
+| T04–T09 | Sürekli + stop (≤ 1 frame); period 100 µs; period < tarama süresi; mask sınırda uygulanır; mask 0000; çalışan tarama biter |
+| T10–T11 | busy iken start yok sayılır; ayar sonraki frame'de geçerli |
+| T12–T14 | Format hatası (basılmaz, select ile hizalanır); adres hatası; ERR_LIMIT = 4 → durur |
+| T15–T17 | SYNC timeout → core_rst; SYNC id hatası; FIFO underflow (her biri durur, power-up yeniden) |
+| T18–T19 | rst_n ile abort + yeniden power-up; mask 0101 → yalnız ch0/ch2, scan_done ch2'de |
+| T20–T22 | Async reset: frame ortasında, clock dururken, 1 clock'luk |
+
+- T01–T22: T_DOUT 25 ns ve 40 ns köşelerinde **22/22**, model timing ihlali **0**.
+- Driver lockstep (sync ref ↔ async, her clock bütün çıkışlar): 3 seed × 2.000.000 clock, FARK = 0.
+- Driver mutation 4/4 yakalandı.
+- Flop kontrolü: 89 grup / 391 bit, düz posedge clk 0.
+- Yorum kontrolü: RTL'deki yorum değişikliklerinde kod ve netlist aynı (netlist sha 596ae01e…).
+- Core'un kendi doğrulaması (lockstep, kısa reset, mutation): `../common/README.md`.
+
 ## Çalıştırma
-
 ```
-cd common/sim                                 # ortak core (repo kökünden)
-./run_sha_check.sh                            # core SHA-256 değişmezlik kontrolü
-./run_lockstep.sh 16 1 1 0 2 2 1 1 200000     # DW CS SDI DELAY CFG DIV SDO_DEF SEED CYCLES
-./run_matrix.sh 1000000 "1 2 3"               # 8 konfigürasyon x 3 seed
-RST_MODE=1 ./run_matrix.sh 500000 "11 12"     # kısa async reset modu
-./run_mutation.sh
-
-cd AD7923/sim                                 # AD7923 driver (repo kökünden)
-./run_ad7923_drv_vhdl.sh 25.0                 # AD7923 driver testleri T01-T22 (T_DOUT 25 ns)
-./run_ad7923_drv_vhdl.sh 40.0                 #   ... T_DOUT 40 ns
-./run_drv_lockstep.sh 1 2000000               # sync <-> async driver lockstep (SEED CYCLES)
-./run_drv_lockstep.sh 2 2000000
-./run_drv_lockstep.sh 3 2000000
-./run_drv_mutation.sh 400000 1                # driver lockstep mutation (4 hata, hepsi YAKALANDI olmalı)
-./run_flop_check.sh                           # netlist yapısal kontrolü (düz posedge clk flop = 0)
+cd AD7923/sim
+./run_ad7923_drv_vhdl.sh 25.0                 # T01-T22, T_DOUT 25 ns
+./run_ad7923_drv_vhdl.sh 40.0                 # T01-T22, T_DOUT 40 ns
+./run_drv_lockstep.sh 1 2000000               # sync ref <-> async driver (SEED CYCLES); seed 2, 3 de
+./run_drv_mutation.sh 400000 1                # 4 mutation, hepsi YAKALANDI olmalı
+./run_flop_check.sh                           # düz posedge clk flop = 0
 ./run_comment_check.sh c5e0676               # yalnız yorum değişti mi (token + netlist)
-vsim -c -do run_questa_ad7923_drv_vhdl.do     # Questa (resmi koşu; batch'te driver lockstep da)
+vsim -c -do run_questa_ad7923_drv_vhdl.do     # Questa
+../../common/sim/run_sha_check.sh             # core değişmezlik
+python3 -I ../docs/gen_drawio.py              # blok diyagramı yeniden üret
 ```
-SHA-256 kontrolü: `common/sim/run_sha_check.sh` (liste: `common/sim/hash/sha256_core.txt`). Elle:
-`cd common && find vendor/adi rtl/async rtl/p1 -type f | sort | xargs sha256sum | diff - ../AD7923/sim/hash/sha256_yorum.txt`
-(`AD7923/sim/hash/`: geçmiş kayıtlar, yollar `common/`'a göre. `sha256_bas.txt` / `sha256_son.txt`:
-async reset geçişinin başı ve sonu; `sha256_yorum.txt`: yorum eklemesinden sonra)
-Gerekenler: GHDL (--synth destekli, ≥ 4.x), Icarus Verilog ≥ 12, Python 3.
+Gerekenler: GHDL ≥ 4 (`--synth`), Icarus Verilog ≥ 12, Python 3.
 
 ## Açık işler
-
-- Questa'da `run_questa_ad7923_drv_vhdl.do` koşusu (bu ortamda yalnız GHDL synth → Icarus akışı koştu;
-  VHDL kaynağı ayrıca Questa'da doğrudan simüle edilmeli). T20–T22 ve `tb_drv_lockstep.v`'nin
-  QUESTA dalı (SignalSpy ile iç sinyal erişimi / force) bu ortamda koşulmadı.
-- Libero (Synplify Pro) sentezi: kaynak raporu (LUT/FF) Verilog sürümüyle karşılaştırılacak.
-- ~~Driver (ad7923_drv, ch_regs) async reset'e geçişi~~ tamamlandı (yukarıda).
-- Driver async geçişi için Libero'da reset ağacı / recovery-removal timing raporu (rst_n
-  synchronizer çıkışından bütün flop'lara).
-- P2: SLEEP 255 düzeltmesi ve kullanılmayan özelliklerin temizlenmesi (onay sonrası).
-- İsteğe bağlı: Yosys + SymbiYosys ile formal equivalence (P1 ↔ orijinal).
+| Konu | Durum |
+|---|---|
+| AD7923 datasheet PDF'i (`docs/datasheet/`) | repo'da yok; yüklenmeli (Rev. D) |
+| Questa koşusu (`.do` hazır) | bu ortamda koşulmadı; T20–T22 ve `tb_drv_lockstep.v`'nin QUESTA dalı (SignalSpy) dahil |
+| Libero / Synplify sentezi, kaynak raporu (LUT/FF) | yapılmadı |
+| Reset ağacı / recovery-removal timing raporu (rst_n synchronizer → bütün flop'lar) | yapılmadı |
+| Kart testi | yapılmadı |
+| Arbiter (paylaşılan hatta HI-8436'larla) | driver req/gnt hazır; arbiter yazılmadı |
+| P2: SLEEP 255 düzeltmesi, kullanılmayan core özelliklerinin temizlenmesi | onay sonrası (core değişikliği) |
+| İsteğe bağlı: Yosys + SymbiYosys ile formal equivalence (P1 ↔ orijinal) | – |

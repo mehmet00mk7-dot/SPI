@@ -109,7 +109,7 @@ architecture rtl of ad7923_top is
   -- tanımlanmaz ve map edilmez (çekirdek default 0 ile elaborate edilir).
   constant C_SDI_DELAY       : std_logic_vector(1 downto 0) := "00";
 
-  -- SPI core (rtl/async/spi_exec.vhd); generic / port listesi orijinal component ile aynı
+  -- SPI core (common/rtl/async/spi_exec.vhd); generic / port listesi orijinal component ile aynı
   component spi_exec is
     generic (
       NUM_OF_CS       : integer := 1;

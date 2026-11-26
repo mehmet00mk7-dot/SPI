@@ -8,8 +8,11 @@
 #   3  FSM               : control FSM (p_ctrl) ve command packer FSM (p_pack)
 #   4  spi_exec          : SPI master control path
 #   5  spi_exec_shiftreg : SPI master data path
-# İçerik rtl/drv ve rtl/async'in güncel kaynağından çıkarılmıştır; blokların
+# İçerik AD7923/rtl ve common/rtl/async'in güncel kaynağından çıkarılmıştır; blokların
 # üzerinde ilgili process / sinyal adları yazılıdır.
+# Renkler (HI8436 ile aynı düzen): turuncu = bizim RTL (koyu: register / clocked process,
+# açık: kombinasyonel), teal = ortak core (common/rtl/async), gri = dış dünya,
+# mor = FSM durumu, kırmızı kesikli = reset yolu.
 #
 # Her kenar, kaynak kutunun kenarındaki bir noktadan hedef kutunun kenarındaki
 # bir noktaya giden açık (orthogonal) bir yol olarak tanımlanır; böylece draw.io
@@ -28,11 +31,15 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ad7923_spi_blok_
 
 # ---------------------------------------------------------------- stiller
 _BOX = 'whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=4;fontSize=11;'
-S_REG = 'rounded=1;arcSize=6;fillColor=#dae8fc;strokeColor=#6c8ebf;' + _BOX
-S_COMB = 'rounded=1;arcSize=6;fillColor=#fff2cc;strokeColor=#d6b656;' + _BOX
-S_INST = 'rounded=0;fillColor=#d5e8d4;strokeColor=#82b366;' + _BOX
+S_REG = 'rounded=1;arcSize=6;fillColor=#ffe6cc;strokeColor=#d79b00;' + _BOX        # bizim: register
+S_COMB = 'rounded=1;arcSize=6;fillColor=#fff5e6;strokeColor=#d79b00;' + _BOX       # bizim: kombinasyonel
+S_INST = 'rounded=0;fillColor=#ffe6cc;strokeColor=#d79b00;' + _BOX                 # bizim: instance
+S_INST_OURS = S_INST
+S_REG_C = 'rounded=1;arcSize=6;fillColor=#b0e3e6;strokeColor=#0e8088;' + _BOX      # core: register
+S_COMB_C = 'rounded=1;arcSize=6;fillColor=#e0f4f5;strokeColor=#0e8088;' + _BOX     # core: kombinasyonel
+S_CORE = 'rounded=0;fillColor=#b0e3e6;strokeColor=#0e8088;' + _BOX                 # core: instance
 S_EXT = 'rounded=0;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;' + _BOX
-S_RST = 'rounded=1;arcSize=6;fillColor=#f8cecc;strokeColor=#b85450;' + _BOX
+S_RST = 'rounded=1;arcSize=6;fillColor=#ffe6cc;strokeColor=#b85450;' + _BOX
 S_GRP = ('rounded=0;fillColor=none;strokeColor=#999999;dashed=1;align=left;verticalAlign=top;'
          'spacingLeft=8;spacingTop=4;whiteSpace=wrap;html=1;fontSize=12;')
 S_NOTE = ('shape=note;size=12;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;'
@@ -111,14 +118,19 @@ class Page:
                 f'<mxCell id="1" parent="0"/>{"".join(self.cells)}</root></mxGraphModel></diagram>')
 
 
-def legend(p, x, y):
+def legend(p, x, y, core=False):
+    """core = True: sayfa ortak core'un içi (spi_exec), register / kombinasyonel teal."""
     mid = 'verticalAlign=middle;'
+    r, c = (S_REG_C, S_COMB_C) if core else (S_REG, S_COMB)
+    who = 'ortak core' if core else 'bizim RTL'
     p.box('<b>Açıklama</b>', x, y, 250, 170, S_GRP)
-    p.box('register / clocked process', x + 10, y + 30, 230, 22, S_REG.replace('verticalAlign=top;', mid))
-    p.box('kombinasyonel mantık', x + 10, y + 58, 230, 22, S_COMB.replace('verticalAlign=top;', mid))
-    p.box('entity instance', x + 10, y + 86, 230, 22, S_INST.replace('verticalAlign=top;', mid))
-    p.box('dış blok / dış dünya', x + 10, y + 114, 230, 22, S_EXT.replace('verticalAlign=top;', mid))
-    p.text('<font color="#b85450">- - - &gt;  reset yolu</font>', x + 14, y + 140, 220, 20)
+    p.box(who + ': register / process', x + 10, y + 26, 230, 22, r.replace('verticalAlign=top;', mid))
+    p.box(who + ': kombinasyonel', x + 10, y + 50, 230, 22, c.replace('verticalAlign=top;', mid))
+    p.box('bizim RTL (AD7923) instance' if core else 'ortak core (common/rtl/async)', x + 10, y + 74, 230, 22,
+          (S_INST_OURS if core else S_CORE).replace('verticalAlign=top;', mid))
+    p.box('dış blok / dış dünya', x + 10, y + 98, 230, 22, S_EXT.replace('verticalAlign=top;', mid))
+    p.box('FSM durumu', x + 10, y + 122, 230, 22, S_STATE)
+    p.text('<font color="#b85450">- - - &gt;  reset yolu</font>', x + 14, y + 146, 220, 20)
 
 
 pages = []
@@ -146,7 +158,7 @@ spi = p.box(lab('u_spi : spi_exec  (SPI master)',
                 'DEFAULT_CLK_DIV = CLK_DIV', 'NUM_OF_SDI = 1, SDO_DEFAULT = "1"', 'SDI_DELAY = "00"', '',
                 'sabit girişler: sdi_data_ready = \'1\',', 'sync_ready = \'1\', echo_sclk = \'0\'',
                 'açık çıkışlar: sdo_t, three_wire'),
-            1000, 140, 320, 380, S_INST)
+            1000, 140, 320, 380, S_CORE)
 regs = p.box(lab('u_regs : ad7923_ch_regs', 'p_regs: kanal başına sonuç register\'ları',
                  'chN_data / chN_valid / scan_done', 'data_valid -> chN_valid: 1 clk'),
              420, 640, 320, 150, S_INST)
@@ -155,7 +167,7 @@ crst = p.box(lab('p_core_resetn (flop)', 'rst_n = \'0\' -> core_resetn = \'0\' (
 adc = p.box(lab('AD7923', '4 kanal, 12 bit, 200 kSPS SAR ADC', 'SPI Mode 2 (CPOL = 1, CPHA = 0)'),
             1460, 160, 240, 300, S_EXT)
 rsync = p.box(lab('Reset synchronizer', 'async assert, sync deassert', 'PLL lock\'a bağlı'),
-              30, 830, 220, 80, S_RST)
+              30, 830, 220, 80, S_EXT)
 
 p.path(sysb, drv, [(200, 200), (420, 200)], 'start, stop, continuous\nch_mask[3:0], period_us[15:0]\nrange_sel, coding_sel')
 p.path(drv, sysb, [(420, 330), (200, 330)], 'busy, err')
@@ -198,7 +210,7 @@ inp = p.box(lab('Kontrol girişleri', 'start, stop', 'continuous', 'ch_mask[3:0]
 outs = p.box(lab('Sonuç çıkışları', 'data_valid, data_ch[1:0]', 'data[11:0], data_last', 'busy, err'),
              30, 900, 180, 100, S_EXT)
 core = p.box(lab('spi_exec', '(SPI master)', '', 'komut / sdo /', 'sdi / sync', 'valid-ready', 'stream\'leri'),
-             1620, 260, 120, 600, S_EXT)
+             1620, 260, 120, 600, S_CORE)
 sel = p.box(lab('Channel selector (comb)', 'first_ch(mask_cur) -> sel_first',
                 'next_ch(mask_cur, cur_ch) -> sel_next, sel_last'), 310, 90, 320, 80, S_COMB)
 ctrl = p.box(lab('Control FSM  (p_ctrl)', 'state: ST_IDLE ... ST_CORE_RST (sayfa 3)',
@@ -321,6 +333,8 @@ p.box('<b>Paket</b> (pk_idx)<br>0 CONFIG clk_div (launch: cyc_ok + gnt)<br>1 CON
 # ============================================================================
 # SAYFA 4: spi_exec (control path)
 # ============================================================================
+# ---- sayfa 4-5 ortak core'un (common/rtl/async) içi: register / kombinasyonel / instance teal
+S_REG, S_COMB, S_INST = S_REG_C, S_COMB_C, S_CORE
 p = Page('4 - spi_exec', 1750, 1180)
 pages.append(p)
 p.text('spi_exec: SPI master control path (ADI spi_engine_execution VHDL çevirisi, async reset)', 30, 16,
@@ -400,7 +414,7 @@ p.box('<b>SPI zamanlaması</b><br>Bir SCLK periyodu = 2 yarı periyot x (clk_div
 p.box('<b>Komutlar</b> (cmd[14:12])<br>000 TRANSFER: [9] R, [8] W, [7:0] n - 1<br>001 CHIPSELECT: [9:8] bekleme, '
       'CS seviyeleri<br>010 WRITE: [9:8] clk_div / config / word length<br>011 MISC: [8] 0 SYNC(id), 1 SLEEP<br>'
       '100 CS_INV: maske', 730, 1020, 400, 120, S_NOTE)
-legend(p, 1460, 1000)
+legend(p, 1460, 1000, core=True)
 
 # ============================================================================
 # SAYFA 5: spi_exec_shiftreg (data path)
@@ -422,7 +436,7 @@ ali = p.box(lab('p_aligner', 'aligned_sdo_data =', 'sdo_data_reg << left_aligned
 sds = p.box(lab('p_sdo_shift: SDO shift register', 'data_sdo_shift (MSB önce)',
                 'first_bit: yükle, trigger_tx: kaydır', 'SDO kapalı / TRANSFER dışı: sdo_idle_state',
                 'sdo_int = MSB'), 970, 130, 300, 110, S_REG)
-pin = p.box(lab('p_out (spi_exec)', 'sdo pin register\'ı'), 1370, 140, 180, 70, S_EXT)
+pin = p.box(lab('p_out (spi_exec)', 'sdo pin register\'ı'), 1370, 140, 180, 70, S_CORE)
 rxd = p.box(lab('p_rx_delay: RX delay line', 'trigger_rx_d[SDI_D+1:0]', 'trigger_rx_s = trigger_rx,',
                 'SDI_DELAY + 1 clk gecikmeli'), 290, 540, 280, 100, S_REG)
 sdi = p.box(lab('g_sdi / p_sdi_shift: SDI shift register', '(MISO hattı başına)',
@@ -452,7 +466,7 @@ p.path(scn, sdv, [(950, 760), (1040, 760)], 'last_sdi_bit')
 p.path(sdv, sdout, [(1300, 740), (1330, 740), (1330, 620), (1370, 620)], 'sdi_data_valid')
 p.path(ctl, sdv, [(230, 480), (260, 480), (260, 860), (1170, 860), (1170, 810)], 'sdi_enabled')
 p.path(ctl, scn, [(230, 460), (245, 460), (245, 785), (650, 785)], 'word_length')
-legend(p, 1370, 700)
+legend(p, 1370, 700, core=True)
 
 
 # ---------------------------------------------------------------- çıktı

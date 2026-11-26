@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# "Yalnız yorum değişti" kontrolü: rtl/drv ve common/rtl/async VHDL dosyalarını verilen git
+# "Yalnız yorum değişti" kontrolü: AD7923/rtl ve common/rtl/async VHDL dosyalarını verilen git
 # revizyonuyla karşılaştırır.
 #   1) check_comment_only.py: yorumsuz token dizisi ve kod satırları aynı mı
 #   2) ghdl --synth netlist'i (ad7923_top), kaynak satır yorumları atılınca aynı mı
@@ -8,18 +8,18 @@ set -e
 cd "$(dirname "$0")"
 REV=${1:-HEAD}
 B=build/cmtchk_$$; mkdir -p $B/old
-# Dosyalar repo köküne göre güncel yerleriyle. Core (rtl/async) common/ altında.
-FILES="common/rtl/async/spi_exec_shiftreg.vhd common/rtl/async/spi_exec.vhd AD7923/rtl/drv/ad7923_drv.vhd AD7923/rtl/drv/ad7923_ch_regs.vhd AD7923/rtl/drv/ad7923_top.vhd"
+# Dosyalar repo köküne göre güncel yerleriyle.
+FILES="common/rtl/async/spi_exec_shiftreg.vhd common/rtl/async/spi_exec.vhd AD7923/rtl/ad7923_drv.vhd AD7923/rtl/ad7923_ch_regs.vhd AD7923/rtl/ad7923_top.vhd"
 ROOT=$(git rev-parse --show-toplevel)
 ARGS=""; OLDL=""; NEWL=""
-# Eski revizyonlarda dosyalar başka yerdeydi: önce güncel yol, sonra AD7923/<rtl/..>
-# (common/ öncesi), en son repo kökü <rtl/..> (AD7923/ öncesi) denenir.
+# Eski revizyonlarda dosyalar başka yerdeydi; sırasıyla denenir:
+#   güncel yol -> AD7923/rtl/{async,drv}/ (common/ ve rtl düzleştirme öncesi) -> rtl/{async,drv}/ (AD7923/ öncesi)
 for f in $FILES; do
-  r=${f#common/}; r=${r#AD7923/}
-  mkdir -p $B/old/$(dirname $r)
-  git show "$REV:$f" > $B/old/$r 2>/dev/null || git show "$REV:AD7923/$r" > $B/old/$r 2>/dev/null \
-    || git show "$REV:$r" > $B/old/$r
-  ARGS="$ARGS $B/old/$r $ROOT/$f"; OLDL="$OLDL $B/old/$r"; NEWL="$NEWL $ROOT/$f"
+  n=$(basename $f)
+  case $f in common/*) a=rtl/async/$n ;; *) a=rtl/drv/$n ;; esac
+  git show "$REV:$f" > $B/old/$n 2>/dev/null || git show "$REV:AD7923/$a" > $B/old/$n 2>/dev/null \
+    || git show "$REV:$a" > $B/old/$n
+  ARGS="$ARGS $B/old/$n $ROOT/$f"; OLDL="$OLDL $B/old/$n"; NEWL="$NEWL $ROOT/$f"
 done
 set +e
 python3 -I check_comment_only.py $ARGS; rc=$?
