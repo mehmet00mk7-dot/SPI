@@ -1,7 +1,7 @@
 # spi_exec: ADI spi_engine_execution'ın VHDL çevirisi (async reset) + AD7923 driver (async reset)
 
 Kaynak: ADI HDL `hdl_2026_r1`, commit `b62abef`, `spi_engine_execution.v` + `spi_engine_execution_shiftreg.v`.
-Orijinal dosyalar `vendor/adi/` altında, değiştirilmeden duruyor:
+Orijinal dosyalar `common/vendor/adi/` altında, değiştirilmeden duruyor:
 
 | Dosya | SHA-256 |
 |---|---|
@@ -10,14 +10,24 @@ Orijinal dosyalar `vendor/adi/` altında, değiştirilmeden duruyor:
 
 ## Klasörler
 
+SPI master core bütün driver'larda ortak kullanıldığı için repo kökündeki `common/` altına
+taşındı (yollar repo köküne göre):
+
 | Klasör | İçerik |
 |---|---|
-| `rtl/async/` | **Kullanılacak sürüm.** `spi_exec.vhd`, `spi_exec_shiftreg.vhd`: async reset |
-| `rtl/p1/` | Ara adım: birebir çeviri, sync reset (`spi_exec_p1*`). Yalnız doğrulama zinciri için |
+| `common/rtl/async/` | **Kullanılacak core sürümü.** `spi_exec.vhd`, `spi_exec_shiftreg.vhd`: async reset |
+| `common/rtl/p1/` | Ara adım: birebir çeviri, sync reset (`spi_exec_p1*`). Yalnız doğrulama zinciri için |
+| `common/vendor/adi/` | Orijinal ADI Verilog (read-only, referans) |
+| `common/tb/` | `tb_lockstep.v` (orijinal ↔ VHDL core) |
+| `common/sim/` | Core doğrulama script'leri: `run_lockstep.sh`, `run_matrix.sh`, `run_mutation.sh`, `run_sha_check.sh`, `hash/sha256_core.txt` |
+
+AD7923'e ait olanlar (`AD7923/` altında):
+
+| Klasör | İçerik |
+|---|---|
 | `rtl/drv/` | AD7923 driver + `ad7923_top.vhd` (core olarak `spi_exec` kullanır). **Async reset** |
 | `rtl/drv_sync_ref/` | Async geçişinden önceki sync reset driver'ın kopyası, entity adları `_sref`. Yalnız lockstep referansı; ürün akışına girmez |
-| `vendor/adi/` | Orijinal ADI Verilog (read-only, referans) |
-| `tb/` | `tb_lockstep.v` (orijinal ↔ VHDL core), `tb_ad7923_drv.v` (driver testleri T01–T22), `tb_drv_lockstep.v` (sync ↔ async driver), AD7923 modeli |
+| `tb/` | `tb_ad7923_drv.v` (driver testleri T01–T22), `tb_drv_lockstep.v` (sync ↔ async driver), AD7923 modeli |
 | `sim/` | Çalıştırma script'leri, Questa `.do`, `check_flops.py`, `check_comment_only.py`, sonuç dosyaları, `hash/` (SHA-256 listeleri) |
 | `docs/` | `ad7923_spi_blok_diyagram.drawio` (blok diyagram, 5 sayfa) ve onu üreten `gen_drawio.py` |
 
@@ -39,7 +49,7 @@ Orijinal dosyalar `vendor/adi/` altında, değiştirilmeden duruyor:
 
 ## Doğrulama
 
-**1) Lockstep (sim/run_lockstep.sh, run_matrix.sh).** Orijinal Verilog, P1 ve async sürüm aynı
+**1) Lockstep (common/sim/run_lockstep.sh, run_matrix.sh).** Orijinal Verilog, P1 ve async sürüm aynı
 girişlerle sürülür; her clock'ta bütün çıkışlar (cmd_ready, sdo_data_ready, sdi_data_valid,
 sdi_data, sync_valid, sync, sclk, sdo, sdo_t, cs, three_wire) karşılaştırılır.
 - Rastgele ama yasal komut akışı: 5 komut tipinin hepsi, tanımsız kodlar, kullanılmayan
@@ -54,7 +64,7 @@ reset verilir; orijinal uzun reset alır. Kontroller:
 - Reset kalktıktan sonra async core orijinalle birebir aynı mı?
 - Clock dururken reset: çıkışlar clock olmadan güvenli mi?
 
-**3) Mutation (sim/run_mutation.sh).** VHDL'e bilerek 5 küçük hata konur
+**3) Mutation (common/sim/run_mutation.sh).** VHDL'e bilerek 5 küçük hata konur
 (CPHA, last_transfer, SDI_DELAY indeksi, SLEEP karşılaştırması, cs_activate maskesi).
 Lockstep hepsini yakalamalı.
 
@@ -66,8 +76,8 @@ Sonuçlar: `sim/SONUCLAR.txt`.
 ## Driver async reset geçişi (rtl/drv)
 
 Ekip standardı gereği driver da async reset'e geçti. Port'lar, generic'ler ve normal çalışmadaki
-davranış aynı; değişen tek şey reset'in tipi. Core (`vendor/adi`, `rtl/async`, `rtl/p1`)
-değişmedi (SHA-256 başta/sonda aynı: `sim/hash/`).
+davranış aynı; değişen tek şey reset'in tipi. Core (`common/vendor/adi`, `common/rtl/async`,
+`common/rtl/p1`) değişmedi (SHA-256 başta/sonda aynı: `sim/hash/`).
 
 **Reset stratejisi.** `rst_n`, projedeki reset synchronizer'dan gelir: async assert, sync
 deassert, PLL lock'a bağlı. Driver, ch_regs ve core aynı `rst_n`'den beslenir. Driver ve
@@ -125,7 +135,7 @@ tekrarlanır.
 
 ## Kod yorumları ve blok diyagram
 
-`rtl/drv` (3 dosya) ve `rtl/async` (2 dosya), Türkçe açıklama yorumlarıyla zenginleştirildi
+`rtl/drv` (3 dosya) ve `common/rtl/async` (2 dosya), Türkçe açıklama yorumlarıyla zenginleştirildi
 (teknik terimler İngilizce). Eklenenler: genel akış ve blok yapısı, AD7923 kanal pipeline'ı,
 komut formatı, SPI zamanlaması, FSM durumları, process ve sinyal açıklamaları.
 **Kod değişmedi.** Bunu iki kontrol gösteriyor (`sim/run_comment_check.sh REV`):
@@ -134,7 +144,8 @@ komut formatı, SPI zamanlaması, FSM durumları, process ve sinyal açıklamala
 
 Testlerin hepsi yeniden koşuldu ve sonuçlar aynı çıktı (`sim/SONUCLAR.txt` bölüm 10).
 rtl/async'e yalnız yorum eklendiği için SHA-256'sı değişti; güncel liste
-`sim/hash/sha256_yorum.txt` dosyasında. vendor/adi ve rtl/p1 değişmedi.
+`sim/hash/sha256_yorum.txt` dosyasında (core taşındıktan sonra: `common/sim/hash/sha256_core.txt`).
+vendor/adi ve rtl/p1 değişmedi.
 
 Blok diyagram: `docs/ad7923_spi_blok_diyagram.drawio` (draw.io / diagrams.net ile açılır).
 1. ad7923_top: bağlantılar, reset yolu, AD7923 pin'leri
@@ -167,11 +178,14 @@ timeout yok, sdi_data latch'lenmiyor. Bunların düzeltilmesi ayrı bir adım (P
 ## Çalıştırma
 
 ```
-cd sim
+cd common/sim                                 # ortak core (repo kökünden)
+./run_sha_check.sh                            # core SHA-256 değişmezlik kontrolü
 ./run_lockstep.sh 16 1 1 0 2 2 1 1 200000     # DW CS SDI DELAY CFG DIV SDO_DEF SEED CYCLES
 ./run_matrix.sh 1000000 "1 2 3"               # 8 konfigürasyon x 3 seed
 RST_MODE=1 ./run_matrix.sh 500000 "11 12"     # kısa async reset modu
 ./run_mutation.sh
+
+cd AD7923/sim                                 # AD7923 driver (repo kökünden)
 ./run_ad7923_drv_vhdl.sh 25.0                 # AD7923 driver testleri T01-T22 (T_DOUT 25 ns)
 ./run_ad7923_drv_vhdl.sh 40.0                 #   ... T_DOUT 40 ns
 ./run_drv_lockstep.sh 1 2000000               # sync <-> async driver lockstep (SEED CYCLES)
@@ -182,9 +196,10 @@ RST_MODE=1 ./run_matrix.sh 500000 "11 12"     # kısa async reset modu
 ./run_comment_check.sh c5e0676               # yalnız yorum değişti mi (token + netlist)
 vsim -c -do run_questa_ad7923_drv_vhdl.do     # Questa (resmi koşu; batch'te driver lockstep da)
 ```
-SHA-256 kontrolü (repo kökünden):
-`find vendor/adi rtl/async rtl/p1 -type f | sort | xargs sha256sum | diff - sim/hash/sha256_yorum.txt`
-(`sha256_bas.txt` / `sha256_son.txt`: async reset geçişinin başı ve sonu; `sha256_yorum.txt`: yorum eklemesinden sonra)
+SHA-256 kontrolü: `common/sim/run_sha_check.sh` (liste: `common/sim/hash/sha256_core.txt`). Elle:
+`cd common && find vendor/adi rtl/async rtl/p1 -type f | sort | xargs sha256sum | diff - ../AD7923/sim/hash/sha256_yorum.txt`
+(`AD7923/sim/hash/`: geçmiş kayıtlar, yollar `common/`'a göre. `sha256_bas.txt` / `sha256_son.txt`:
+async reset geçişinin başı ve sonu; `sha256_yorum.txt`: yorum eklemesinden sonra)
 Gerekenler: GHDL (--synth destekli, ≥ 4.x), Icarus Verilog ≥ 12, Python 3.
 
 ## Açık işler

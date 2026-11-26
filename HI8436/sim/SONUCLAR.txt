@@ -1,0 +1,118 @@
+HI-8436 driver (hi8436_drv + hi8436_top) dogrulama sonuclari - Faz 4: POR tespiti + teslim (branch drv/hi8436)
+Akis: GHDL 4.1 (--std=08, --synth --out=verilog) -> Icarus Verilog 12 (-g2012). Questa: run_questa_hi8436_drv_vhdl.do
+(bu ortamda Questa yok, kosulmadi). Datasheet: DS8436 Rev. L. Onayli arayuz: docs/ANALIZ.md + Faz 1/3/4 kararlari.
+
+== 0) Faz 4 degisikligi: periyodik dogrulama ile POR tespiti
+  - VERIFY_EVERY varsayilani 0 -> 16 (hi8436_drv, hi8436_top).
+  - Dogrulama turu: okumanin hemen ardindan 82 84 BA BC 9E. Esik register'lari (GOCENHYS, SOCENHYS) her
+    turda: gecerli esik asla 0x00 degil (HYS >= 1) -> POR kesin yakalanir.
+  - Sayac start'lar arasinda sifirlanmaz; tek okuma kullaniminda (continuous = 0) da dogrulama yapilir.
+    Basarili init / guncelleme geri okumasinda 0'lanir. stop ile kesilen dogrulama sonraki okumada yapilir.
+  - Uyusmazlik: kod 3, init_done = 0, hemen nMR + tam init (okumalar surer).
+  - TB: ana DUT (u_dut) VERIFY_EVERY = 0 ile (deterministik paket sayimi); ikinci DUT (u_dutv) VARSAYILAN
+    generic'lerle -> T14 (16'da bir dogrulama) ve yeni T28 (POR tespiti).
+  Faz 3 (init politikasi) ozeti: tam init yalniz rst_n / yapisal hata / ERR_LIMIT / kod 3 / self-test hatasi
+  sonrasi; ayar degisince nMR'siz kismi guncelleme; ayarlar ayniysa dogrudan okuma; INIT_EVERY_START = true
+  eski davranis.
+
+== 1) Core SHA-256 (common/sim/run_sha_check.sh), basta ve sonda
+  log/sha256_bas.txt = log/sha256_son.txt, SONUC: BASARILI
+  f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  vendor/adi/spi_engine_execution.v
+  70868cc989cda94ffe54bed3e99fa86520bc812980564003c7f64621c9233460  vendor/adi/spi_engine_execution_shiftreg.v
+  b78e57872762acf81aa2980c249af1873ed394c4b23aff4b6ef14349110d46b4  rtl/async/spi_exec.vhd
+  35e51b7a7dce4c79442b6c23813e1a30cbc4799a3e6961d8ac56f938529f342c  rtl/async/spi_exec_shiftreg.vhd
+  1ca4b8fcecfd72777cbe654f2033c996410418677dba450649c3f018d0b1dc03  rtl/p1/spi_exec_p1.vhd
+  d750a860bfb4937b2e4277a0bb279ac51fc3ca2d0e823dbfc6d5ad1103a01bd9  rtl/p1/spi_exec_p1_shiftreg.vhd
+  "git diff --stat <faz basi> -- AD7923 common": bos (AD7923/ ve common/ degismedi)
+
+== 2) Senaryo testleri: run_hi8436_drv_vhdl.sh [T_SO] [DW] [RTL] [UNUSED_STORE] [HAS_MR] [INIT_EVERY_START]
+  Kosu                                          Sonuc                                       Log
+  T_SO  5.0 ns, DW 8                            29/29, timing ihlali 0, SONUC: BASARILI     log/drv_tb_5.0.txt
+  T_SO 35.0 ns, DW 8                            29/29, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0.txt
+  T_SO 35.0 ns, DW 16 (paylasilan core)         29/29, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0_dw16.txt
+  T_SO  5.0 ns, DW 32                           29/29, timing ihlali 0, SONUC: BASARILI     log/drv_tb_5.0_dw32.txt
+  T_SO 35.0 ns, model UNUSED_STORE=1            29/29, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0_unused1.txt
+  T_SO 35.0 ns, HAS_MR = false                  29/29, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0_nomr.txt
+  T_SO 35.0 ns, INIT_EVERY_START = true         29/29, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0_ies1.txt
+  T_SO  5.0 ns, INIT_EVERY_START = true         29/29, timing ihlali 0, SONUC: BASARILI     log/drv_tb_5.0_ies1.txt
+  T_SO 35.0 ns, INIT_EVERY_START = true, nMR'siz 29/29, timing ihlali 0, SONUC: BASARILI    log/drv_tb_35.0_ies1_nomr.txt
+  NEGATIF: T_SO 45.0 ns (pencere 40 ns)         2/29, SONUC: BASARISIZ (beklenen), exit 1   log/drv_tb_NEG_45.0.txt
+
+  Test  Ne kontrol eder                                                                         Sonuc
+  T01   reset sonrasi cikislar, start'siz SPI trafigi yok                                       PASS (butun koseler)
+  T02   ilk start: nMR 200 ns + tam init sirasi, model register'lari, cfg_done                 PASS
+  T03   tek okuma (IES=0: ayarlar ayni -> yalniz F8, nMR yok)                                   PASS
+  T04   polarite (bank_mode 0110), sense_act                                                    PASS
+  T05   hysteresis (surekli okuma icinde)                                                       PASS
+  T06   period_us: tam 20000 ns; period 0 / 2 us arka arkaya 2800 ns                            PASS
+  T07   sense degisimi, sense_chg, gecikme 7,6 us                                               PASS
+  T08   calisirken ayar degisikligi uygulanmaz; stop/start ile uygulanir                        PASS
+  T09   stop (bosluk, ucan paket, init sirasinda)                                               PASS
+  T10   busy iken start yok sayilir                                                             PASS
+  T11   geri okuma hatasi, ERR_LIMIT, 5 register ayri ayri; ERR_LIMIT sonrasi tam init          PASS
+  T12   CFG_RANGE reddi, kullanilmayan mod                                                      PASS
+  T13   self-test (IDLE'dan / calisirken / DS-9 / hata / stop ertelenir)                        PASS
+  T14   varsayilan DUT: her 16 F8'de 82 84 BA BC 9E; POR -> kod 3, yeniden init                 PASS
+  T15   SYNC timeout -> kod 8, core_rst 4 clk                                                   PASS
+  T16   yanlis SYNC id -> kod 9                                                                 PASS
+  T17   beklenmeyen / eksik sdi -> kod A / B                                                    PASS
+  T18   settle: yazma -> F8 >= 2850 ns, ihlal 0                                                 PASS
+  T19   gnt / req                                                                               PASS
+  T20   reset frame ortasinda; sonraki start nMR + tam init                                     PASS
+  T21   reset clock dururken                                                                    PASS
+  T22   1 clock'luk reset                                                                       PASS
+  T23   0xF8 byte sirasi (0x12345678, 0x87654321)                                               PASS
+  T24   arka arkaya tek okuma: nMR / yazma yok, 2820 ns, band durumu korunur                    PASS
+  T25   alan alan ayar degisimi: yalniz degisen register (6640 / 6160 / 12820 ns)               PASS
+  T26   yapisal hata 8 / 9 / A / B sonrasi start: nMR + tam init                                PASS
+  T27   self-test hatasi sonrasi start: nMR + tam init                                          PASS
+  T28   YENI POR tespiti (varsayilan generic'ler): surekli okumada POR uc fazda -> 13, 2 ve 16
+        okuma icinde kod 3 (16 = POR dogrulamadan hemen sonra, en kotu durum, sinir tam);
+        tam init, model register'lari geri gelir, sense dogru. Tek okuma: 17 start'ta dogrulama
+        turu 1 (sayac start'lar arasinda suruyor); POR -> 12. start'ta kod 3, tam init, dogru
+        sense. IES = 1'de her start zaten tam init (POR sonraki start'ta duzelir, hata yok)     PASS
+  G     genel kontroller (model ihlali 0, sense izleme, req, err_code, iptal = 3)               PASS
+
+  T28 gelistirme notu: ilk surumde POR #1 ve #2 icin "0 okuma" olculdu; kok neden testti: err sticky
+  oldugu icin POR #0'dan kalan err = 1 bekleme dongusunu hemen bitiriyordu. Tespit ani modelde yeni
+  tam init'in (02 yazmasi) baslamasiyla olculecek sekilde duzeltildi. Sinir 0..16 okuma (POR bir
+  dogrulama turunun ortasina denk gelirse 0 mumkun); en kotu durum fazi eklendi ve tam 16 olculdu.
+
+  Olculen (35.0 ns, IES = 0): ilk start -> cfg_done 16,54 us; tam init start -> sense_valid 19,34 us
+  (nMR'siz 18,14); kismi guncelleme 6,16-6,66 us (tek register), 12,82 us (uc); dogrudan okuma 2,82 us.
+  Paketler: yazma 1/2 byte 1300/1780 ns, okuma 1/2 byte 1320/1800 ns, F8 2760 ns (CS low 2580).
+  Model en dar: tCYC 60, tSCKH/L 30, tCES 120, tCHH 100, tCEH 70, tCPH 210, tDS/tDH 30, tMR 200 ns.
+
+== 3) Flop kontrolu: run_flop_check.sh (log/flop_check.txt, varsayilan generic'ler)
+  100 flop grubu / 505 bit, hepsi "posedge clk or posedge <rst_n'den>":
+    hi8436_top (p_core_resetn)   1 grup    1 bit  ~rst_n dogrudan
+    u_drv                       56 grup  359 bit  ~rst_n dogrudan
+    u_spi + u_shiftreg          43 grup  145 bit  rst_n -> p_core_resetn flop'u (onayli yol)
+  Duz posedge clk flop: 0. Turetilmis async reset: 0. SONUC: BASARILI
+
+== 4) Mutation + negatif kontrol: run_drv_mutation.sh 35.0 (log/drv_mutation.txt)
+  M1  F8 byte sirasi ters                              YAKALANDI (T02-T28)
+  M2  2 byte'lik yazmada DB1/DB0 ters                  YAKALANDI (T02-T28)
+  M3  settle timer clear kaybi                         YAKALANDI (T18, T25, G)
+  M4  sense_chg xor yok                                YAKALANDI (T07, T14, T28, G)
+  M5  mr_n reset degeri '0'                            YAKALANDI (T01, T02, T20-T22)
+  M6  CONFIG mode CPHA = 1                             YAKALANDI (G: tDS/tDH ihlalleri)
+  M7  geri okumada TMDATA karsilastirmasi atlanmis     YAKALANDI (T11)
+  M8  eksik sdi kelimesi kontrolu yok                  YAKALANDI (T17, T26, G)
+  M9  period gecikme telafisi 1 eksik                  YAKALANDI (T06)
+  M10 yapisal hatada init_done temizlenmiyor           YAKALANDI (T15, T26)
+  M11 ayar karsilastirmasi so_hyst'i atliyor           YAKALANDI (T12, T25)
+  M12 YENI periyodik dogrulama yalniz CTRL okuyor      YAKALANDI (T14, T28)
+  N1  NEGATIF KONTROL: driver + top sync reset kopyasi -> T20, T21, T22 KALDI (beklenen);
+      flop kontrolu BASARISIZ (57 grup / 360 bit duz posedge clk). SONUC: BASARILI
+
+== 5) Teslim dokumanlari
+  README.md (amac, arayuz, mimari, FSM, init politikasi, paketler, register'lar, hata kodlari, POR tespiti,
+  dogrulama, calistirma, acik isler), docs/hi8436_blok_diyagram.drawio (6 sayfa: sistem zinciri,
+  hi8436_top, driver ic bloklari, FSM, F8 zamanlamasi, init politikasi; docs/gen_drawio.py ile uretilir),
+  docs/KONUSMA_NOTLARI.md.
+
+== 6) Gecmis
+  Faz 2: T01-T23 + G 24/24, mutation 9/9, flop 93 grup / 468 bit (her start'ta tam init).
+  Faz 3: init politikasi, T24-T27, mutation 11/11, flop 99 grup / 501 bit.
+  Gelistirme sirasinda bulunan test / model hatalari ilgili faz commit'lerinde aciklandi.

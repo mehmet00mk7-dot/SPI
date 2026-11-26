@@ -1,0 +1,18 @@
+M10_yapisal_init_done: MUTATION YAKALANDI | kalan testler: T15 T26  | timing ihlali=0
+M11_ayar_karsilastirma: MUTATION YAKALANDI | kalan testler: T12 T25  | timing ihlali=0
+M12_dogrulama_yalniz_ctrl: MUTATION YAKALANDI | kalan testler: T14 T28  | timing ihlali=0
+M1_f8_byte_sirasi: MUTATION YAKALANDI | kalan testler: T02 T03 T04 T05 T06 T07 T08 T09 T10 T11 T12 T13 T14 T15 T16 T17 T18 T19 T20 T21 T22 T23 T24 T25 T26 T27 T28  | timing ihlali=0
+M2_esik_byte_sirasi: MUTATION YAKALANDI | kalan testler: T02 T03 T04 T05 T06 T07 T08 T09 T10 T11 T12 T13 T14 T15 T16 T17 T18 T19 T20 T21 T22 T23 T24 T25 T26 T27 T28  | timing ihlali=0
+M3_settle_clear_kaybi: MUTATION YAKALANDI | kalan testler: T18 T25 G  | timing ihlali=11
+M4_sense_chg_xor_yok: MUTATION YAKALANDI | kalan testler: T07 T14 T28 G  | timing ihlali=0
+M5_mr_n_reset_degeri: MUTATION YAKALANDI | kalan testler: T01 T02 T20 T21 T22  | timing ihlali=0
+M6_cpha_1: MUTATION YAKALANDI | kalan testler: G  | timing ihlali=2954
+M7_geri_okuma_atlanan: MUTATION YAKALANDI | kalan testler: T11  | timing ihlali=0
+M8_sdi_eksik_kontrol_yok: MUTATION YAKALANDI | kalan testler: T17 T26 G  | timing ihlali=0
+M9_period_telafi: MUTATION YAKALANDI | kalan testler: T06  | timing ihlali=0
+N1_sync_reset: MUTATION YAKALANDI | kalan testler: T20 T21 T22 G  | timing ihlali=2
+   N1 flop kontrolu: Düz "always @(posedge clk)" (reset'siz) flop: 57 grup, 360 bit YAPISAL KONTROL: BASARISIZ 
+cad643e7cbf210cf1267ebf71c7df12a557972aad6db92c0d1f15fda1a82f51e  ../rtl/hi8436_drv.vhd
+d3a6ccf599bdc2338404dae719cf930ba0a4f23536e57b4ed89e9701a466695d  ../rtl/hi8436_top.vhd
+SONUC: BASARILI (butun mutation'lar yakalandi, negatif kontrol dogru)
+exit=0

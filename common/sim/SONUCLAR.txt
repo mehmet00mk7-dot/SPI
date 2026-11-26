@@ -1,0 +1,13 @@
+common/ : ortak SPI master core (spi_exec) dogrulama sonuclari
+Core'un cevirisi, async reset surumu ve onceki dogrulamalarin ayrintisi: AD7923/sim/SONUCLAR.txt
+(core ilk olarak AD7923 isinde yazildi).
+
+== 1) Repo duzeni: core AD7923/ altindan common/ altina tasindi (branch drv/hi8436)
+  git mv ile, icerik degismeden: vendor/adi, rtl/async, rtl/p1, tb/tb_lockstep.v,
+  sim/run_lockstep.sh, sim/run_matrix.sh, sim/run_mutation.sh
+  SHA-256 tasimadan once / sonra: 10 dosya birebir ayni
+    (log/sha256_tasima_oncesi.txt, log/sha256_tasima_sonrasi.txt)
+  run_sha_check.sh (hash/sha256_core.txt + CLAUDE.md sabitleri): SONUC: BASARILI
+  Core lockstep (./run_lockstep.sh 16 1 1 0 2 2 1 1 200000), log/core_lockstep_after_move.txt:
+    cycles=200000 karsilastirilan=199788 reset=12 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0  SONUC: BASARILI
+  Mutation (./run_mutation.sh), log/mutation_after_move.txt: 5 mutation x 2 konfigurasyon = 10/10 YAKALANDI

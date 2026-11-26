@@ -18,6 +18,7 @@
 
 quietly set T_DOUT 25.0
 quietly set RTL    ../rtl
+quietly set CORE   ../../common/rtl/async
 quietly set TB     ../tb
 quietly set LIB    work_ad7923_vhdl
 quietly set RUN_LOCKSTEP 1
@@ -28,9 +29,9 @@ if {[file exists $LIB]} { vdel -lib $LIB -all }
 vlib $LIB
 vmap work $LIB
 
-# 1) SPI core (VHDL çevirisi, async reset)
-vcom -2008 -work work $RTL/async/spi_exec_shiftreg.vhd
-vcom -2008 -work work $RTL/async/spi_exec.vhd
+# 1) SPI core (VHDL çevirisi, async reset; ortak: common/rtl/async)
+vcom -2008 -work work $CORE/spi_exec_shiftreg.vhd
+vcom -2008 -work work $CORE/spi_exec.vhd
 
 # 2) Driver ve top (VHDL-2008)
 vcom -2008 -work work $RTL/drv/ad7923_drv.vhd

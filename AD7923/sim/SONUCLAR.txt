@@ -460,3 +460,27 @@ f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  spi_engine_exe
   uretilir: 1 ad7923_top, 2 ad7923_drv ic bloklari, 3 control FSM + packer FSM,
   4 spi_exec control path, 5 spi_exec_shiftreg data path.
 
+
+== 12) Repo duzeni: core common/ altina tasindi (branch drv/hi8436)
+  Tasinan (git mv, icerik degismedi):
+    AD7923/vendor/adi            -> common/vendor/adi
+    AD7923/rtl/async             -> common/rtl/async
+    AD7923/rtl/p1                -> common/rtl/p1
+    AD7923/tb/tb_lockstep.v      -> common/tb/tb_lockstep.v
+    AD7923/sim/run_lockstep.sh, run_matrix.sh, run_mutation.sh -> common/sim/
+  Yol guncellenen script'ler (yalniz core yolu, CORE=../../common/rtl/async):
+    run_ad7923_drv_vhdl.sh, run_flop_check.sh, run_drv_lockstep.sh,
+    run_questa_ad7923_drv_vhdl.do, run_comment_check.sh (eski revizyonlarda 3 olasi yer)
+  AD7923 RTL (rtl/drv, rtl/drv_sync_ref) ve tb dosyalarina dokunulmadi.
+  SHA-256: tasimadan once / sonra 10 dosya birebir ayni (common/sim/log/sha256_tasima_*.txt),
+    common/sim/run_sha_check.sh: SONUC: BASARILI
+  Testler (tasimadan sonra; tasimadan onceki kosuyla log'lar birebir ayni, yalniz build klasoru PID'i farkli):
+  T_DOUT=25.0: TOPLAM: 22 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+  T_DOUT=40.0: TOPLAM: 22 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+     netlist yapisal kontrol (run_flop_check.sh): 89 grup / 391 bit, YAPISAL KONTROL: BASARILI
+     driver lockstep (run_drv_lockstep.sh 1 200000):
+  clock=200002 karsilastirilan=199999 atlanan(reset assert -> ilk posedge)=2 | FARK=0 (ilk: clock -1) | async reset kontrol=2 hata=0
+     yorum kontrolu (run_comment_check.sh c5e0676): YALNIZ YORUM DEGISTI, NETLIST AYNI 596ae01e84143456
+     core lockstep (common/sim/run_lockstep.sh 16 1 1 0 2 2 1 1 200000):
+  cycles=200000 karsilastirilan=199788 reset=12 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0  SONUC: BASARILI
+  Log'lar: sim/log/repo_duzeni/, common/sim/log/

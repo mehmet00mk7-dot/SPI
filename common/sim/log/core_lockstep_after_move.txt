@@ -1,0 +1,8 @@
+  SLEEP255: ref/p1/as cmd_ready=0 sureleri 5000/5000/5000 (5000 = hang, beklenen) ->   OK
+CONFIG DW=16 CS=1 SDI=1 DELAY=0 CFG=2 DIV=2 SDO_DEF=1 SEED=1
+  cycles=200000 karsilastirilan=199788 reset=12 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0
+  COV transfer=684 (none=163 W=184 R=186 RW=151) cs=423 cfg=170 div=83 wlen=134 reg11=21
+  COV sync=197 sleep=130 csinv=122 undef=69 | wait_for_io=210 sdi_words=1026 sync_hs=126
+SONUC: BASARILI
+../tb/tb_lockstep.v:312: $finish called at 20501400 (100ps)
+rc=0
