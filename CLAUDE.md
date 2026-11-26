@@ -26,8 +26,8 @@ common/                   ortak SPI master core (bütün driver'lar buradan kull
 
 ## Değişmez kurallar
 
-1. **Core'a dokunma.** `common/vendor/adi`, `common/rtl/async` ve `common/rtl/p1` değişmez
-   (yerleri `AD7923/` altındaysa orada). Her işin başında ve sonunda SHA-256 al, karşılaştır, rapora koy.
+1. **Core'a dokunma.** `common/vendor/adi`, `common/rtl/async` ve `common/rtl/p1` değişmez.
+   Her işin başında ve sonunda SHA-256 al, karşılaştır, rapora koy.
    - spi_engine_execution.v: `f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86`
    - spi_engine_execution_shiftreg.v: `70868cc989cda94ffe54bed3e99fa86520bc812980564003c7f64621c9233460`
 2. **Başka bir entegrenin klasörüne dokunma.** HI8436 üzerinde çalışırken `AD7923/` değişmez.
