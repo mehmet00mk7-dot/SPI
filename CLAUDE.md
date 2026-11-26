@@ -124,6 +124,8 @@ common/                   ortak SPI master core (bütün driver'lar buradan kull
 
 ## Git
 
-- Her driver kendi branch'inde: `drv/<entegre>` (ör. `drv/hi8436`). Her faz kapısında commit + push.
-- İş bitince main'e PR aç; merge'ü kullanıcı yapar.
+- Kalıcı tek branch `main`. Bütün driver'lar main'de kendi klasöründe (`<ENTEGRE>/`), ortak core `common/` altında.
+- Çalışma sırasında geçici driver branch'i: `drv/<entegre>` (ör. `drv/hi8436`). Her faz kapısında commit + push.
+- İş bitince main'e PR aç; merge'ü kullanıcı yapar (merge commit, squash değil).
+  Merge'den sonra driver branch'i silinir (commit'leri main'in geçmişinde kalır).
 - Gizli bilgi (anahtar, şifre, kişisel bilgi) commit'leme.
