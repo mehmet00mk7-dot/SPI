@@ -6,8 +6,10 @@ set -e
 cd "$(dirname "$0")"
 TDOUT=${1:-25.0}
 B=build/drv_vhdl
+# Ortak SPI master core (spi_exec, async reset): repo kökünde common/rtl/async
+CORE=../../common/rtl/async
 rm -rf $B; mkdir -p $B
-ghdl -a --std=08 --workdir=$B ../rtl/async/spi_exec_shiftreg.vhd ../rtl/async/spi_exec.vhd \
+ghdl -a --std=08 --workdir=$B $CORE/spi_exec_shiftreg.vhd $CORE/spi_exec.vhd \
   ../rtl/drv/ad7923_drv.vhd ../rtl/drv/ad7923_ch_regs.vhd ../rtl/drv/ad7923_top.vhd
 ghdl --synth --std=08 --workdir=$B --out=verilog ad7923_top > $B/ad7923_top_net.v
 iverilog -g2012 -o $B/ad7923_drv.vvp -s tb_ad7923_drv -Ptb_ad7923_drv.T_DOUT=$TDOUT \

@@ -5,8 +5,10 @@
 set -e
 cd "$(dirname "$0")"
 DRV=${1:-../rtl/drv}
+# Ortak SPI master core (spi_exec, async reset): repo kökünde common/rtl/async
+CORE=../../common/rtl/async
 B=build/flopchk_$$; mkdir -p $B
-ghdl -a --std=08 --workdir=$B ../rtl/async/spi_exec_shiftreg.vhd ../rtl/async/spi_exec.vhd \
+ghdl -a --std=08 --workdir=$B $CORE/spi_exec_shiftreg.vhd $CORE/spi_exec.vhd \
   $DRV/ad7923_drv.vhd $DRV/ad7923_ch_regs.vhd $DRV/ad7923_top.vhd
 ghdl --synth --std=08 --workdir=$B --out=verilog ad7923_top > $B/ad7923_top_net.v
 echo "always blokları (sensitivity, adet):"

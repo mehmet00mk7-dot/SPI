@@ -1,0 +1,11 @@
+M1_cpha_ignored [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+M1_cpha_ignored [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+M2_last_transfer_off_by_one [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+M2_last_transfer_off_by_one [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+M3_sdi_delay_index [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+M3_sdi_delay_index [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+M4_sleep_bug_fixed [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+M4_sleep_bug_fixed [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+M5_cs_activate_mask [16 1 1 0 2 2 1] MUTATION:   YAKALANDI
+M5_cs_activate_mask [32 8 2 3 3 1 0] MUTATION:   YAKALANDI
+rc=0

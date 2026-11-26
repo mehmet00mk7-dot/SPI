@@ -1,0 +1,8 @@
+/home/user/SPI/common/rtl/async/spi_exec_shiftreg.vhd: token 941/941 AYNI | kod satiri 155/155 AYNI | yorum satiri 60 -> 78
+/home/user/SPI/common/rtl/async/spi_exec.vhd: token 2865/2865 AYNI | kod satiri 500/500 AYNI | yorum satiri 95 -> 180
+/home/user/SPI/AD7923/rtl/drv/ad7923_drv.vhd: token 3851/3851 AYNI | kod satiri 649/649 AYNI | yorum satiri 120 -> 221
+/home/user/SPI/AD7923/rtl/drv/ad7923_ch_regs.vhd: token 351/351 AYNI | kod satiri 55/55 AYNI | yorum satiri 25 -> 35
+/home/user/SPI/AD7923/rtl/drv/ad7923_top.vhd: token 1030/1030 AYNI | kod satiri 203/203 AYNI | yorum satiri 40 -> 74
+SONUC: YALNIZ YORUM DEGISTI
+NETLIST (ad7923_top, kaynak satir yorumlari haric): AYNI  596ae01e84143456
+rc=0
