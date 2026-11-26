@@ -1,6 +1,19 @@
-HI-8436 driver (hi8436_drv + hi8436_top) dogrulama sonuclari - Faz 2 (branch drv/hi8436)
+HI-8436 driver (hi8436_drv + hi8436_top) dogrulama sonuclari - Faz 3: init politikasi (branch drv/hi8436)
 Akis: GHDL 4.1 (--std=08, --synth --out=verilog) -> Icarus Verilog 12 (-g2012). Questa: run_questa_hi8436_drv_vhdl.do
-(bu ortamda Questa yok, kosulmadi). Datasheet: DS8436 Rev. L. Onayli arayuz: docs/ANALIZ.md + Faz 1 kararlari.
+(bu ortamda Questa yok, kosulmadi). Datasheet: DS8436 Rev. L. Onayli arayuz: docs/ANALIZ.md + Faz 1/3 kararlari.
+
+== 0) Faz 3 degisikligi: init politikasi (INIT_EVERY_START = false varsayilan)
+  init_done (= cfg_done) + shadow register'lar (entegreye son yazilip dogrulanan bank_mode / esikler).
+  start'ta:
+    nMR + tam init (5 yaz + 5 geri oku) : init_done = 0. init_done rst_n ile ve yapisal hata (8/9/A/B),
+                                          geri okuma / dogrulama uyusmazligi (2/3, ERR_LIMIT dahil),
+                                          self-test hatasi ile temizlenir. Ek guvenlik: bir yazma dizisi
+                                          baslarken de 0 olur (stop ile yarida kesilirse icerik bilinmez).
+    kismi guncelleme (nMR yok)          : init_done = 1, ayarlar farkli -> yalniz degisen PSEN / GOCENHYS /
+                                          SOCENHYS yazilir + geri okunur + settle, sonra okuma.
+    dogrudan okuma                      : init_done = 1, ayarlar ayni.
+  INIT_EVERY_START = true: eski davranis (her start'ta nMR + tam init).
+  RTL: hi8436_drv.vhd (init_done, sh_*, upd maskesi, d_bm/d_go/d_so), hi8436_top.vhd (generic gecisi).
 
 == 1) Core SHA-256 (common/sim/run_sha_check.sh), basta ve sonda
   log/sha256_bas.txt = log/sha256_son.txt, SONUC: BASARILI
@@ -12,99 +25,99 @@ Akis: GHDL 4.1 (--std=08, --synth --out=verilog) -> Icarus Verilog 12 (-g2012). 
   d750a860bfb4937b2e4277a0bb279ac51fc3ca2d0e823dbfc6d5ad1103a01bd9  rtl/p1/spi_exec_p1_shiftreg.vhd
   "git diff --stat HEAD -- AD7923 common": bos (AD7923/ ve common/ degismedi)
 
-== 2) Senaryo testleri: run_hi8436_drv_vhdl.sh [T_SO] [DATA_WIDTH] [RTL] [UNUSED_STORE] [HAS_MR]
-  Kosu                                   Sonuc                                         Log
-  T_SO  5.0 ns, DW 8                     24/24, timing ihlali 0, SONUC: BASARILI       log/drv_tb_5.0.txt
-  T_SO 35.0 ns, DW 8                     24/24, timing ihlali 0, SONUC: BASARILI       log/drv_tb_35.0.txt
-  T_SO 35.0 ns, DW 16 (paylasilan core)  24/24, timing ihlali 0, SONUC: BASARILI       log/drv_tb_35.0_dw16.txt
-  T_SO  5.0 ns, DW 32                    24/24, timing ihlali 0, SONUC: BASARILI       log/drv_tb_5.0_dw32.txt
-  T_SO 35.0 ns, model UNUSED_STORE=1     24/24, timing ihlali 0, SONUC: BASARILI       log/drv_tb_35.0_unused1.txt
-  T_SO 35.0 ns, HAS_MR = false           24/24, timing ihlali 0, SONUC: BASARILI       log/drv_tb_35.0_nomr.txt
-  NEGATIF: T_SO 45.0 ns (pencere 40 ns)  2/24, SONUC: BASARISIZ (beklenen), exit 1     log/drv_tb_NEG_45.0.txt
-    (geri okuma uyusmazligi yakalanir: err_code 2, ERR_LIMIT -> durur; testler MISO gecikmesine duyarli)
-  T_SO: model SCK dusen kenari -> SO. Datasheet tDV <= 20 ns (s.19); 35 ns = 20 ns + 15 ns kart/IO.
+== 2) Senaryo testleri: run_hi8436_drv_vhdl.sh [T_SO] [DW] [RTL] [UNUSED_STORE] [HAS_MR] [INIT_EVERY_START]
+  Kosu                                         Sonuc                                       Log
+  T_SO  5.0 ns, DW 8                           28/28, timing ihlali 0, SONUC: BASARILI     log/drv_tb_5.0.txt
+  T_SO 35.0 ns, DW 8                           28/28, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0.txt
+  T_SO 35.0 ns, DW 16 (paylasilan core)        28/28, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0_dw16.txt
+  T_SO  5.0 ns, DW 32                          28/28, timing ihlali 0, SONUC: BASARILI     log/drv_tb_5.0_dw32.txt
+  T_SO 35.0 ns, model UNUSED_STORE=1           28/28, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0_unused1.txt
+  T_SO 35.0 ns, HAS_MR = false                 28/28, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0_nomr.txt
+  T_SO 35.0 ns, INIT_EVERY_START = true        28/28, timing ihlali 0, SONUC: BASARILI     log/drv_tb_35.0_ies1.txt
+  T_SO  5.0 ns, INIT_EVERY_START = true        28/28, timing ihlali 0, SONUC: BASARILI     log/drv_tb_5.0_ies1.txt
+  T_SO 35.0 ns, INIT_EVERY_START = true, nMR'siz 28/28, timing ihlali 0, SONUC: BASARILI    log/drv_tb_35.0_ies1_nomr.txt
+  NEGATIF: T_SO 45.0 ns (pencere 40 ns)        2/28, SONUC: BASARISIZ (beklenen), exit 1   log/drv_tb_NEG_45.0.txt
+  Eski 24 test (T01-T23 + G), testler degistirilmeden INIT_EVERY_START = true ile: 24/24 BASARILI
+  (Faz 3 RTL'i ile, test duzenlemesinden once kosuldu). Asagidaki duzenlemeler IES = 1'de eski ifadeyi
+  aynen korur (kosullu), force_full_init IES = 1'de islem yapmaz.
 
-  Test  Ne kontrol eder                                                                         Sonuc (5.0 / 35.0)
-  T01   reset sonrasi cikislar, start'siz SPI trafigi yok                                       PASS / PASS
-  T02   init: nMR 200 ns, 02 04 3A 3C 1E + 82 84 BA BC 9E + F8 sirasi, model register'lari,
-        cfg_done, tek sense_valid                                                               PASS / PASS
-  T03   tek okuma: sense = beklenen, 1 sense_valid, busy duser, her start'ta tam init           PASS / PASS
-  T04   polarite: bank_mode 0110, GND/high/open -> Tbl 14; sense_act (aktif = GND/Open'da
-        toprak, Supply/Open'da besleme)                                                         PASS / PASS
-  T05   hysteresis (surekli okuma icinde): band'deki kanal 0 ve 1 durumunu korur               PASS / PASS
-  T06   surekli + period_us: F8 launch araligi tam 20000 ns; period 0 ve 2 us -> arka arkaya   PASS / PASS
-  T07   rastgele sense degisimleri: sense = model, sense_chg = xor; tek degisim gecikmesi
-        7,6 us (<= T_SENSE 1 + period 5 + paket 2,77 us)                                        PASS / PASS
-  T08   calisirken ayar degisikligi uygulanmaz (yalniz F8); stop/start ile uygulanir           PASS / PASS
-  T09   stop: boslukta 20 ns'de IDLE; ucan paket tamamlanir (iptal yok); init sirasinda
-        (3. paketten sonra durur)                                                               PASS / PASS
-  T10   busy iken start yok sayilir (yeniden init yok)                                         PASS / PASS
-  T11   geri okuma hatasi: kod 2, retry; surekli hata -> 4 deneme (ERR_LIMIT) sonra dur;
-        5 register'in her birine ayri hata enjeksiyonu yakalanir                                PASS / PASS
-  T12   CFG_RANGE: go_h=0, 50+5>52, 6-3<4, (bm 0001, so_h=0) reddedilir, SPI trafigi 0;
-        kullanilmayan modun kodu kontrol edilmez                                                PASS / PASS
-  T13   self-test: IDLE'dan (okuma yok, 17 paket), calisirken (siradaki okuma yerine),
-        DS-9 (band kanallari ALL0 sonrasi 1 kalir), hata -> st_fail + kod 4 + test modundan
-        cikilmis, self-test sirasinda stop ertelenir                                            PASS / PASS
-  T14   VERIFY_EVERY = 8 DUT: her 8 okumada 82 84 BA BC 9E; POR glitch -> kod 3, yeniden init  PASS / PASS
-  T15   SYNC timeout (sync_valid force 0): kod 8, core_rst 4 clk, sonra start ile normal       PASS / PASS
-  T16   yanlis SYNC id: kod 9                                                                   PASS / PASS
-  T17   beklenmeyen sdi kelimesi: kod A; eksik sdi kelimesi: kod B                             PASS / PASS
-  T18   settle: yazma -> F8 en kisa 2850 ns (>= 2 us), model settle ihlali 0                   PASS / PASS
-  T19   gnt = 0 iken paket yok, req = 1, timeout yok; gnt = 1 -> 11 paket; CS low iken req = 1 PASS / PASS
-  T20   rst_n frame ortasinda (SCK aktif): 1 ns'de butun cikislar reset degerinde, cs_n=1,
-        mr_n=1; kendiliginden baslamaz; start ile init                                         PASS / PASS
-  T21   rst_n clock dururken: cikislar clock'suz guvenli                                        PASS / PASS
-  T22   1 clock'luk rst_n                                                                       PASS / PASS
-  T23   0xF8 byte sirasi: 0x12345678 (GND/Open) ve 0x87654321 (Supply/Open) -> sense[31:0]     PASS / PASS
-  G     genel: model timing ihlali 0, her sense_valid'de sense = modelin gonderdigi kelime,
-        sense_chg/sense_act, sense_valid 1 clk, CS low iken req=1, err=0 iken err_code=0,
-        iptal edilen cerceve yalniz T20-T22 (3 = 3)                                            PASS / PASS
+  Test  Ne kontrol eder                                                                  Sonuc (5.0 / 35.0 / IES=1)
+  T01   reset sonrasi cikislar, start'siz SPI trafigi yok                                PASS / PASS / PASS
+  T02   ilk start: nMR 200 ns + tam init sirasi, model register'lari, cfg_done          PASS / PASS / PASS
+  T03*  tek okuma: sense dogru, 1 sense_valid; IES=0: ayarlar ayni -> yalniz F8, nMR yok  PASS / PASS / PASS
+  T04   polarite (bank_mode 0110), sense_act                                             PASS / PASS / PASS
+  T05   hysteresis (surekli okuma icinde)                                                PASS / PASS / PASS
+  T06   period_us: tam 20000 ns; period 0 / 2 us arka arkaya (2800 ns)                   PASS / PASS / PASS
+  T07   sense degisimi, sense_chg, gecikme                                               PASS / PASS / PASS
+  T08   calisirken ayar degisikligi uygulanmaz; stop/start ile uygulanir                 PASS / PASS / PASS
+  T09*  stop (bosluk, ucan paket, init sirasinda)                                        PASS / PASS / PASS
+  T10   busy iken start yok sayilir                                                      PASS / PASS / PASS
+  T11*  geri okuma hatasi, ERR_LIMIT, her register ayri; ERR_LIMIT sonrasi start tam init  PASS / PASS / PASS
+  T12   CFG_RANGE reddi, kullanilmayan mod                                               PASS / PASS / PASS
+  T13*  self-test (IDLE'dan / calisirken / DS-9 / hata / stop ertelenir)                 PASS / PASS / PASS
+  T14   VERIFY_EVERY = 8 + POR -> kod 3, nMR + yeniden init                              PASS / PASS / PASS
+  T15   SYNC timeout -> kod 8, core_rst 4 clk                                            PASS / PASS / PASS
+  T16   yanlis SYNC id -> kod 9                                                          PASS / PASS / PASS
+  T17   beklenmeyen / eksik sdi -> kod A / B                                             PASS / PASS / PASS
+  T18   settle: yazma -> F8 >= 2850 ns, ihlal 0                                          PASS / PASS / PASS
+  T19*  gnt / req                                                                        PASS / PASS / PASS
+  T20   reset frame ortasinda; sonraki start nMR + tam init                              PASS / PASS / PASS
+  T21   reset clock dururken                                                             PASS / PASS / PASS
+  T22   1 clock'luk reset                                                                PASS / PASS / PASS
+  T23   0xF8 byte sirasi (0x12345678, 0x87654321)                                        PASS / PASS / PASS
+  T24   YENI arka arkaya iki tek okuma: IES=0 -> yalniz F8 F8, nMR 0, start -> sense_valid
+        2820 ns; band kanallari durumunu korur (00ff -> 00ff). IES=1 -> her start nMR + tam
+        init (19340 ns), band latch reset (00ff -> 0000, DS-10; nMR'siz: 00ff)            PASS / PASS / PASS
+  T25   YENI alan alan ayar degisimi (go_c, go_h, so_c, so_h, bank_mode, ucu birden):
+        IES=0 -> nMR yok, yalniz 3A BA / 3C BC / 04 84 (+F8), ucu: 04 3A 3C 84 BA BC F8;
+        model register'lari ve yeni ayarla sense dogru; yazma -> F8 >= 2850 ns.
+        start -> sense_valid: 6640 / 6640 / 6660 / 6660 / 6160 / 12820 ns.
+        IES=1 -> her adimda nMR + tam init                                               PASS / PASS / PASS
+  T26   YENI yapisal hata 8, 9, A, B sonrasi start: nMR + tam init (02..9E, F8)           PASS / PASS / PASS
+  T27   YENI self-test hatasi sonrasi start: nMR + tam init                              PASS / PASS / PASS
+  G     genel kontroller (model ihlali 0, sense izleme, req, err_code, iptal = 3)         PASS / PASS / PASS
 
-  Olculen (35.0 ns kosusu; launch = ilk komut kabulu -> SYNC):
-    Yazma 1 byte (02/04/1E): 1300 ns, CS low 1120 ns    Yazma 2 byte (3A/3C): 1780 ns, CS low 1600 ns
-    Okuma 1 byte (82/84/9E): 1320 ns, CS low 1140 ns    Okuma 2 byte (BA/BC): 1800 ns, CS low 1620 ns
-    F8 (32 bit)            : 2760 ns, CS low 2580 ns
-    start -> cfg_done: 16,54 us (HAS_MR=true: nMR 0,2 + bekleme 1 us dahil), 15,34 us (HAS_MR=false)
-    Arka arkaya okuma araligi 2800 ns (en yuksek ~357 kHz); period_us = 20 -> tam 20000 ns
-    Model (en kotu, tam cerceveler): tCYC 60 (>=50), tSCKH/L 30 (>=20), tCES 120, tCHH 100, tCEH 70 (>=5),
-      tCPH 210 (>=55), tDS/tDH 30 (>=10), tMR 200 (>=100) ns, yazma -> F8 >= 2850 ns (>=1000)
+  * Varsayilan koseye (IES = 0) gore guncellenen testler ve gerekcesi:
+    T03  Beklenen paket sayisi 11 -> 1 ve nMR yok: ayarlar ayni, politika geregi dogrudan okuma (madde 3).
+    T09c "Init sirasinda stop" icin entegrenin tam init yapmasi gerekir; oncesine bosta rst_n pulse'i
+         (force_full_init, madde 1: rst_n sonrasi ilk start = tam init). Beklentiler ayni.
+    T11  Geri okuma hata enjeksiyonu (tek / surekli / 5 register ayri ayri) tam init'te 82 ve 9E dahil
+         butun register'lar okunurken yapilmali; her alt testten once force_full_init. Beklentiler ayni.
+         Ek kontrol: ERR_LIMIT ile durduktan sonraki start tam init yapiyor (madde 1).
+    T13a IES = 0'da once ayarlar bir start ile uygulanir; self_test_req (init_done = 1, ayarlar ayni)
+         dogrudan self-test yapar: beklenen paket listesi init + 7 -> yalniz 7 test paketi.
+    T13b IES = 0'da start entegreyi reset'lemez; band kanallari (16-23) once high (latch 0) yapilip
+         band'e alinir, self-test oncesi 00 oldugu da kontrol edilir (DS-9 gosterimi anlamli kalsin).
+    T19  gnt birakilinca beklenen cerceve sayisi 11 -> 1 (ayarlar ayni, dogrudan okuma).
+
+  Olculen (35.0 ns, IES = 0): ilk start -> cfg_done 16,54 us; tam init start -> sense_valid 19,34 us
+  (nMR'siz 18,14); kismi guncelleme 6,16-6,66 us (tek register), 12,82 us (uc register); dogrudan okuma
+  2,82 us. Paketler: yazma 1/2 byte 1300/1780 ns, okuma 1/2 byte 1320/1800 ns, F8 2760 ns.
+  Model en dar: tCYC 60, tSCKH/L 30, tCES 120, tCHH 100, tCEH 70, tCPH 210, tDS/tDH 30, tMR 200 ns.
 
 == 3) Flop kontrolu: run_flop_check.sh (log/flop_check.txt)
-  93 flop grubu / 468 bit, hepsi "posedge clk or posedge <rst_n'den>":
+  99 flop grubu / 501 bit, hepsi "posedge clk or posedge <rst_n'den>":
     hi8436_top (p_core_resetn)   1 grup    1 bit  ~rst_n dogrudan
-    u_drv                       49 grup  322 bit  ~rst_n dogrudan
+    u_drv                       55 grup  355 bit  ~rst_n dogrudan (Faz 2: 49 / 322; +init_done, shadow, upd)
     u_spi + u_shiftreg          43 grup  145 bit  rst_n -> p_core_resetn flop'u (onayli yol)
   Duz posedge clk flop: 0. Turetilmis async reset: 0. SONUC: BASARILI
-  Ek sentez: HAS_MR=false (92 grup), CFG_FROM_GENERIC=true (93), DATA_WIDTH=32 + VERIFY_EVERY=3 (94); duz flop 0.
-  GHDL -Wall analiz ve --synth uyarisi: yok (driver/top).
 
-== 4) Mutation + negatif kontrol: run_drv_mutation.sh 35.0 (log/drv_mutation.txt)
-  M1 F8 byte sirasi ters                  YAKALANDI (T02-T23)
-  M2 2 byte'lik yazmada DB1/DB0 ters      YAKALANDI (T02-T23; geri okuma uyusmazligi)
-  M3 settle timer clear kaybi             YAKALANDI (T18, G: 9 settle ihlali)
-  M4 sense_chg xor yok                    YAKALANDI (T07, T14, G)
-  M5 mr_n reset degeri '0'                YAKALANDI (T01, T02, T20-T22)
-  M6 CONFIG mode CPHA = 1                 YAKALANDI (G: 2833 tDS/tDH ihlali)
-  M7 geri okumada TMDATA karsilastirmasi  YAKALANDI (T11)
-  M8 eksik sdi kelimesi kontrolu yok      YAKALANDI (T17, G)
-  M9 period gecikme telafisi 1 eksik      YAKALANDI (T06: aralik 20000 ns degil)
-  N1 NEGATIF KONTROL: driver + top sync reset kopyasi -> T20, T21, T22 KALDI (beklenen);
-     flop kontrolu BASARISIZ (50 grup / 323 bit duz posedge clk). SONUC: BASARILI
+== 4) Mutation + negatif kontrol: run_drv_mutation.sh 35.0 (log/drv_mutation.txt, IES = 0)
+  M1  F8 byte sirasi ters                  YAKALANDI (T02-T27)
+  M2  2 byte'lik yazmada DB1/DB0 ters      YAKALANDI (T02-T27)
+  M3  settle timer clear kaybi             YAKALANDI (T18, T25, G)
+  M4  sense_chg xor yok                    YAKALANDI (T07, T14, G)
+  M5  mr_n reset degeri '0'                YAKALANDI (T01, T02, T20-T22)
+  M6  CONFIG mode CPHA = 1                 YAKALANDI (G: tDS/tDH ihlalleri)
+  M7  geri okumada TMDATA karsilastirmasi  YAKALANDI (T11)   [desen yeni rb_now koduna uyarlandi]
+  M8  eksik sdi kelimesi kontrolu yok      YAKALANDI (T17, T26, G)
+  M9  period gecikme telafisi 1 eksik      YAKALANDI (T06)
+  M10 YENI yapisal hatada init_done temizlenmiyor   YAKALANDI (T15, T26)
+  M11 YENI ayar karsilastirmasi so_hyst'i atliyor   YAKALANDI (T12, T25)
+  N1  NEGATIF KONTROL: driver + top sync reset kopyasi -> T20, T21, T22 KALDI (beklenen);
+      flop kontrolu BASARISIZ (56 grup / 356 bit duz posedge clk). SONUC: BASARILI
 
-== 5) Gelistirme sirasinda bulunan ve duzeltilen TEST / MODEL hatalari (RTL degismedi)
-  Ilk kosu 20/23. Kok nedenler:
-  a) T05 ve T13 (DS-9): her start nMR ile tam reset yapar; model SO latch'lerini reset degerine
-     (0x00, s.9 Tbl 8-12) dondurur -> band'deki kanalin onceki durumu start'lar arasinda tasinmaz.
-     Testin beklentisi yanlisti; hysteresis ve DS-9 surekli okuma icinde (araya init girmeden) test
-     ediliyor. Datasheet belirsizligi -> DS-10 (README).
-  b) T07: secilen kanal (3) bank_mode 0101'de Supply/Open bankindaydi (open = GND = 1, degisim yok).
-     GND/Open bankindan kanal 11 kullanildi.
-  c) tMR ihlali 1 (t = 5 ns): Icarus'ta "reg rst_n = 0" t=0'da async reset olayi uretmez, mr_n ilk
-     clock kenarina kadar X; model X->1'i nMR pulse'i sayiyordu. Model duzeltildi: pulse = gercek
-     1 -> 0 -> 1.
-  d) Paket olcumu (9090 ns): T19'da gnt negedge'de birakilinca ilk komut kabulu yarim clock suruyor,
-     negedge'de ornekleyen monitor kaciriyordu. Olcum posedge'e tasindi.
-  e) Mutation ile bulunan test boslugu: M7 (TMDATA geri okumasi atlanmis) ilk T11 ile yakalanmiyordu
-     (enjeksiyon yalniz ilk okunan register'a). T11c eklendi: 5 register'in her birine ayri enjeksiyon.
-  f) NEG 45 ns kosusunda T02 cfg_done'u sonsuz bekliyordu; bekleme sinirli yapildi (raporlama icin).
+== 5) Faz 2 ozeti (gecmis)
+  Faz 2'de (her start'ta tam init) T01-T23 + G 24/24, mutation 9/9, flop 93 grup / 468 bit. Gelistirme
+  sirasinda bulunan test / model hatalari (T05/T13 nMR-hysteresis beklentisi, T07 kanal secimi, model
+  nMR X->1, paket olcumu negedge, T11 register kapsami) Faz 2 commit'inde duzeltildi.

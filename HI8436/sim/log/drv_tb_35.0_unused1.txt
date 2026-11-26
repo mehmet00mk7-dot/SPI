@@ -1,4 +1,4 @@
-tb_hi8436_drv: T_SO = 35.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 1, HAS_MR = 1
+tb_hi8436_drv: T_SO = 35.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 1, HAS_MR = 1, INIT_EVERY_START = 0
 
 --- T01 reset sonrasi cikislar
   PASS  T01 reset sonrasi cikislar, start'siz SPI trafigi yok
@@ -10,7 +10,7 @@ tb_hi8436_drv: T_SO = 35.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 1, HAS_MR = 1
   PASS  T02 init + geri okuma, register'lar, nMR
 
 --- T03 tek okuma
-    sense 3c96e10f (beklenen 3c96e10f), sense_valid 1
+    sense 3c96e10f (beklenen 3c96e10f), sense_valid 1, paket 1
   PASS  T03 tek okuma: sense dogru, 1 sense_valid, busy duser
 
 --- T04 polarite (bank_mode 0110), sense_act
@@ -28,11 +28,11 @@ tb_hi8436_drv: T_SO = 35.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 1, HAS_MR = 1
   PASS  T06 surekli + period_us: tam 20 us; period 0 ve 2 us arka arkaya
 
 --- T07 sense degisimi, sense_chg, gecikme
-    24 okuma, sense_chg /= 0 goruldu: 14 | tek degisim gecikmesi 7600 ns (<= T_SENSE 1000 + period 5000 + paket 2770)
+    24 okuma, sense_chg /= 0 goruldu: 14 | tek degisim gecikmesi 7590 ns (<= T_SENSE 1000 + period 5000 + paket 2770)
   PASS  T07 sense degisimi: sense = model, sense_chg = xor, gecikme
 
 --- T08 calisirken ayar degisikligi uygulanmaz
-    calisirken: yalniz F8 (15), register'lar eski | stop/start sonrasi PSEN 0f GO 04/0a SO 0a/1e
+    calisirken: yalniz F8 (11), register'lar eski | stop/start sonrasi PSEN 0f GO 04/0a SO 0a/1e
   PASS  T08 ayar degisikligi calisirken uygulanmaz, stop/start ile uygulanir
 
 --- T09 stop
@@ -54,7 +54,7 @@ tb_hi8436_drv: T_SO = 35.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 1, HAS_MR = 1
   PASS  T12 CFG_RANGE: gecersiz kod reddi (SPI yok), kullanilmayan mod kontrol edilmez
 
 --- T13 self-test
-    op: 02 04 3a 3c 1e 82 84 ba bc 9e 1e 02 f8 1e f8 02 1e
+    op: 1e 02 f8 1e f8 02 1e
     (a) IDLE'dan: st_done 1 st_fail 0, sense_valid 0
     op: 1e 02 f8 1e f8 02 1e f8 f8 f8
     (b) calisirken: st_done 1 | DS-9: once 000000ff, self-test sonrasi 00ff00ff (band kanallari 23:16 -> ff)
@@ -82,7 +82,7 @@ tb_hi8436_drv: T_SO = 35.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 1, HAS_MR = 1
   PASS  T18 settle: init ve self-test sonrasi ilk F8 >= 2 us, ihlal 0
 
 --- T19 gnt / req
-    gnt=0: cerceve 0, req 0 | gnt=1: 11 cerceve, CS low iken req=0 sayisi 0
+    gnt=0: cerceve 0, req 0 | gnt=1: 1 cerceve, CS low iken req=0 sayisi 0
   PASS  T19 gnt=0 iken paket yok (timeout yok), req paket boyunca 1
 
 --- T20 reset frame ortasinda (SCK aktif)
@@ -99,17 +99,49 @@ tb_hi8436_drv: T_SO = 35.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 1, HAS_MR = 1
     GND/Open: sense 12345678 (DB3=SO<31:24>=12 ... DB0=78) | Supply/Open: sense 87654321
   PASS  T23 F8 byte sirasi: DB3..DB0 -> sense[31:0] (0x12345678, 0x87654321)
 
+--- T24 arka arkaya iki tek okuma (init politikasi)
+    op: f8 f8
+    start -> sense_valid: 2820 / 2820 ns | sense[15:0] 00ff -> band 00ff (beklenen 00ff) | nMR 0
+  PASS  T24 arka arkaya tek okuma: nMR / yazma yok, sure ~ okuma, band durumu korunur
+
+--- T25 iki start arasinda ayar degisimi (yalniz degisen register)
+    adim 0: start -> sense_valid 6640 ns
+    op: 3a ba f8
+    adim 1: start -> sense_valid 6640 ns
+    op: 3a ba f8
+    adim 2: start -> sense_valid 6660 ns
+    op: 3c bc f8
+    adim 3: start -> sense_valid 6660 ns
+    op: 3c bc f8
+    adim 4: start -> sense_valid 6160 ns
+    op: 04 84 f8
+    adim 5: start -> sense_valid 12820 ns
+    op: 04 3a 3c 84 ba bc f8
+    son: bank_mode 1100 -> sense ffff0000 | yazma -> F8 en kisa 2850 ns, settle ihlali 0
+  PASS  T25 ayar degisimi: nMR yok, yalniz degisen register yazilip geri okunur, settle, yeni ayarla sense
+
+--- T26 yapisal hatadan sonra start: nMR + tam init
+    hata kodu 8 -> sonraki start: 11 paket, nMR 1: tam init
+    hata kodu 9 -> sonraki start: 11 paket, nMR 1: tam init
+    hata kodu a -> sonraki start: 11 paket, nMR 1: tam init
+    hata kodu b -> sonraki start: 11 paket, nMR 1: tam init
+  PASS  T26 yapisal hata (8, 9, A, B) sonrasi start: nMR + tam init
+
+--- T27 self-test hatasindan sonra start: nMR + tam init
+    op: 02 04 3a 3c 1e 82 84 ba bc 9e f8
+  PASS  T27 self-test hatasi sonrasi start: nMR + tam init
+
 --- Paket olcumleri (launch = ilk komut kabulu -> SYNC; CS low)
     W1 (02/04/1E): 1300..1300 ns, CS 1120..1120 | W2 (3A/3C): 1780..1780 ns, CS 1600..1600
     R1 (82/84/9E): 1320..1320 ns, CS 1140..1140 | R2 (BA/BC): 1800..1800 ns, CS 1620..1620
-    F8: 2760..2760 ns, CS 2580..2580 (119 paket)
+    F8: 2760..2760 ns, CS 2580..2580 (144 paket)
 
 --- Genel kontroller
     sense hatasi 0 | sense_chg 0 | sense_act 0 | sense_valid genislik 0 | cfg_done'suz sense_valid 0
-    CS low iken req=0: 0 | err=0 iken err_code/=0: 0 | VERIFY DUT sense hatasi 0 | sense_valid toplam 109
+    CS low iken req=0: 0 | err=0 iken err_code/=0: 0 | VERIFY DUT sense hatasi 0 | sense_valid toplam 130
 
 --- HI-8436 timing kontrolleri (model)
-    HI-8436 model: cerceve=646 yazma=374 iptal=3 nMR reset=51 POR enj.=0 | F8=123 (test 8)
+    HI-8436 model: cerceve=551 yazma=294 iptal=3 nMR reset=33 POR enj.=0 | F8=149 (test 10)
       ihlal: tCYC=0 tSCKH=0 tSCKL=0 tCES=0 tCHH=0 tCEH=0 tCPH=0 tDS=0 tDH=0 tMR=0
              mode=0 reserved=0 chaining=0 settle=0 test-esik=0  -> toplam 0
       olculen min: tCYC 60.0 tSCKH 30.0 tSCKL 30.0 tCES 120.0 tCHH 100.0 tCEH 70.0 tCPH 210.0 tDS 30.0 tDH 30.0 tMR 200.0 ns
@@ -122,6 +154,6 @@ tb_hi8436_drv: T_SO = 35.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 1, HAS_MR = 1
     Iptal edilen cerceve: 3, beklenen (T20-T22 reset) 3 | VERIFY DUT iptal 0
   PASS  G   genel: model timing ihlali 0, sense/chg/act/req/err_code izleme, iptal yalniz reset testlerinde
 
-TOPLAM: 24 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
-../tb/tb_hi8436_drv.v:758: $finish called at 18552700 (100ps)
+TOPLAM: 28 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+../tb/tb_hi8436_drv.v:885: $finish called at 17719500 (100ps)
 exit=0

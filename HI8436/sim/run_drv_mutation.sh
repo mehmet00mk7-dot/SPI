@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mutation sanity check: RTL'in (rtl/ kopyası) içine bilerek küçük hatalar konur; senaryo
+# Mutation sanity check (varsayılan generic'ler, INIT_EVERY_START = false): RTL'in (rtl/ kopyası) içine bilerek küçük hatalar konur; senaryo
 # testleri (tb_hi8436_drv) her birini yakalamalı (SONUC: BASARISIZ). rtl/'ye dokunulmaz:
 # kopya üzerinde çalışılır, koşu sonunda kopya silinir.
 # Ayrıca negatif kontrol N1: driver ve top'taki bütün clocked process'ler SYNC reset'e
@@ -33,13 +33,19 @@ muts = {
  'M6_cpha_1': [(D, 'constant C_SPI_MODE0   : std_logic_vector(7 downto 0) := x"00";',
                    'constant C_SPI_MODE0   : std_logic_vector(7 downto 0) := x"01";')],
  # M7: geri okumada son register (TMDATA) karşılaştırılmıyor
- 'M7_geri_okuma_atlanan': [(D, "elsif rb_bad = '1' or rx_sh(15 downto 0) /= rb_exp then",
-                               "elsif rb_bad = '1' then")],
+ 'M7_geri_okuma_atlanan': [(D, "if frm_pend = '1' and rx_sh(15 downto 0) /= rb_exp then",
+                               "if frm_pend = '1' and idx /= 4 and rx_sh(15 downto 0) /= rb_exp then")],
  # M8: eksik sdi kelimesi kontrolü yok
  'M8_sdi_eksik_kontrol_yok': [(D, "sdi_miss  <= '1' when frm_done = '1' and exp_cnt /= 0 else '0';",
                                   "sdi_miss  <= '0';")],
  # M9: period gecikme telafisi yanlış (launch aralığı 10 ns kayar)
  'M9_period_telafi': [(D, "constant C_PER_LAT : integer := 4;", "constant C_PER_LAT : integer := 3;")],
+ # M10: yapısal hatadan sonra init_done temizlenmiyor (sonraki start tam init yapmaz)
+ 'M10_yapisal_init_done': [(D, "        init_done  <= '0';\n        frm_pend   <= '0';\n        mr_n_r     <= '1';",
+                               "        frm_pend   <= '0';\n        mr_n_r     <= '1';")],
+ # M11: ayar karşılaştırması bir alanı atlıyor (so_hyst)
+ 'M11_ayar_karsilastirma': [(D, "d_so <= '1' when so_center /= sh_soc or so_hyst /= sh_soh else '0';",
+                                "d_so <= '1' when so_center /= sh_soc else '0';")],
 }
 for name, edits in muts.items():
     d = f'{root}/{name}'; shutil.copytree('../rtl', d)

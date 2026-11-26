@@ -64,6 +64,7 @@ entity hi8436_top is
     CORE_RST_CLKS    : integer := 4;      -- core_rst pulse
     ERR_LIMIT        : integer := 4;      -- art arda veri hatası limiti
     VERIFY_EVERY     : integer := 0;      -- periyodik config doğrulaması (0 = kapalı, K-9)
+    INIT_EVERY_START : boolean := false;  -- true: her start'ta nMR + tam init (eski davranış)
     CFG_FROM_GENERIC : boolean := false;  -- true: ayarlar DEF_* generic'lerinden
     DEF_BANK_MODE    : integer := 0;      -- 0..15, PSEN<3:0>
     DEF_GO_CENTER    : integer := 9;      -- GND/Open 1,4 / 0,4 V
@@ -179,7 +180,8 @@ begin
       SYNC_TO_CLKS  => SYNC_TO_CLKS,
       CORE_RST_CLKS => CORE_RST_CLKS,
       ERR_LIMIT     => ERR_LIMIT,
-      VERIFY_EVERY  => VERIFY_EVERY
+      VERIFY_EVERY  => VERIFY_EVERY,
+      INIT_EVERY_START => INIT_EVERY_START
     )
     port map (
       clk           => clk,

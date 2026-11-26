@@ -14,6 +14,12 @@
 //   T10 busy iken start yok sayılır                         T21 reset clock dururken
 //   T11 geri okuma hatası, retry, ERR_LIMIT                 T22 1 clock'luk reset
 //   T12 CFG_RANGE (geçersiz eşik reddi, kullanılmayan mod)  T23 0xF8 byte sırası (0x12345678)
+//   Init politikası (INIT_EVERY_START = false): T24 arka arkaya tek okumalar (nMR / yazma yok,
+//   hysteresis korunur), T25 alan alan ayar değişimi (yalnız değişen register), T26 yapısal
+//   hatalardan sonra tam init, T27 self-test hatasından sonra tam init. IES = 1 köşesinde
+//   T24/T25 eski davranışı (her start'ta nMR + tam init) doğrular.
+//   Varsayılan köşede (IES = 0) tam init gerektiren testler (T09c, T11) öncesinde boşta bir
+//   rst_n pulse'ı verilir (force_full_init: "rst_n sonrası ilk start = tam init" kuralı).
 //
 // Genel kontroller (her clock): sense_valid 1 clk; her sense_valid'de sense = modelin
 // gönderdiği son test-dışı F8 kelimesi, sense_chg = sense xor önceki, sense_act = sense xor
@@ -31,6 +37,7 @@ module tb_hi8436_drv;
   parameter integer DW           = 8;      // core DATA_WIDTH (netlist bu değerle üretilir)
   parameter integer UNUSED_STORE = 0;      // model: kullanılmayan register bitleri saklanır mı
   parameter integer HAS_MR       = 1;      // DUT HAS_MR generic'i (netlist bu değerle üretilir)
+  parameter integer IES          = 0;      // DUT INIT_EVERY_START generic'i (1 = eski davranış)
 
   // ---------------------------------------------------------------- clock / reset
   reg clk = 1'b0;
@@ -51,7 +58,7 @@ module tb_hi8436_drv;
   wire        spi_sclk, spi_mosi, spi_cs_n, spi_miso, spi_mr_n;
 
 `ifdef QUESTA
-  hi8436_top #(.DATA_WIDTH(DW), .HAS_MR(HAS_MR != 0)) u_dut (
+  hi8436_top #(.DATA_WIDTH(DW), .HAS_MR(HAS_MR != 0), .INIT_EVERY_START(IES != 0)) u_dut (
 `else
   hi8436_top u_dut (
 `endif
@@ -73,7 +80,7 @@ module tb_hi8436_drv;
   wire [3:0]  err_codev;
   wire        v_sclk, v_mosi, v_cs_n, v_miso, v_mr_n;
 `ifdef QUESTA
-  hi8436_top #(.DATA_WIDTH(DW), .HAS_MR(HAS_MR != 0), .VERIFY_EVERY(8)) u_dutv (
+  hi8436_top #(.DATA_WIDTH(DW), .HAS_MR(HAS_MR != 0), .INIT_EVERY_START(IES != 0), .VERIFY_EVERY(8)) u_dutv (
 `else
   hi8436_top_v u_dutv (
 `endif
@@ -277,6 +284,14 @@ module tb_hi8436_drv;
       while (u_hi.n_op < tgt && $realtime - t0 < max_ns) #10;
     end
   endtask
+  // varsayılan köşede entegreyi tam init'e zorla: boştayken rst_n pulse'ı (IES = 1'de hiçbir şey)
+  task force_full_init;
+    begin
+      if (IES == 0) begin
+        @(negedge clk) rst_n = 1'b0; #50; @(negedge clk) rst_n = 1'b1; wait_ns(100.0);
+      end
+    end
+  endtask
   task cfg_default;
     begin
       bank_mode = 4'b0000; go_c = 6'd9; go_h = 6'd5; so_c = 6'd35; so_h = 6'd15;
@@ -340,7 +355,8 @@ module tb_hi8436_drv;
   reg [31:0] w, s0, s1, e;
 
   initial begin
-    $display("tb_hi8436_drv: T_SO = %0.1f ns, DATA_WIDTH = %0d, UNUSED_STORE = %0d, HAS_MR = %0d", T_SO, DW, UNUSED_STORE, HAS_MR);
+    $display("tb_hi8436_drv: T_SO = %0.1f ns, DATA_WIDTH = %0d, UNUSED_STORE = %0d, HAS_MR = %0d, INIT_EVERY_START = %0d",
+             T_SO, DW, UNUSED_STORE, HAS_MR, IES);
     #200 @(negedge clk) rst_n = 1'b1;
 
     // ============================================================ T01
@@ -376,10 +392,12 @@ module tb_hi8436_drv;
     // ============================================================ T03
     $display("\n--- T03 tek okuma");
     w = 32'h3C96_E10F; lvl = lvl_for(w, 4'b0101); wait_ns(1500.0);
-    sv0 = n_sv; m = u_hi.n_op;
+    sv0 = n_sv; m = u_hi.n_op; mr0 = u_hi.mr_resets;
     pulse_start; wait_idle(100000.0);
-    $display("    sense %h (beklenen %h), sense_valid %0d", sense, w, n_sv - sv0);
-    result(sense === w && n_sv - sv0 == 1 && busy === 0 && u_hi.n_op - m == 11 && e_svw == 0,
+    $display("    sense %h (beklenen %h), sense_valid %0d, paket %0d", sense, w, n_sv - sv0, u_hi.n_op - m);
+    // IES = 1: her start tam init (11 paket); IES = 0: ayarlar aynı -> doğrudan okuma (1 paket, nMR yok)
+    result(sense === w && n_sv - sv0 == 1 && busy === 0 && e_svw == 0 &&
+           (IES ? (u_hi.n_op - m == 11) : (u_hi.n_op - m == 1 && u_hi.mr_resets == mr0)),
            "T03 tek okuma: sense dogru, 1 sense_valid, busy duser");
 
     // ============================================================ T04
@@ -495,6 +513,7 @@ module tb_hi8436_drv;
     wait_f8_cs; #300; f0 = u_hi.frames; pulse_stop; wait_idle(10000.0); wait_ns(10000.0);
     ok2 = (u_hi.frames == f0 && u_hi.aborted == a0 && u_hi.last_op == 8'hF8);
     // (c) init sırasında stop (3. yazma çerçevesi sırasında)
+    force_full_init;
     continuous = 1'b0; m = u_hi.n_op;
     pulse_start; wait_op(3, 20000.0); #200; pulse_stop; wait_idle(20000.0); wait_ns(5000.0);
     ok3 = (u_hi.n_op - m == 3 && cfg_done === 0 && err === 0 && busy === 0 && u_hi.aborted == a0);
@@ -515,24 +534,27 @@ module tb_hi8436_drv;
 
     // ============================================================ T11
     $display("\n--- T11 geri okuma hatasi");
-    cfg_default; m = u_hi.n_op; sv0 = n_sv; mr0 = u_hi.mr_resets;
+    cfg_default; force_full_init; m = u_hi.n_op; sv0 = n_sv; mr0 = u_hi.mr_resets;
     u_hi.inj_rb_flip = 1;
     pulse_start; wait_idle(200000.0);
     ok = (err === 1 && err_code === 4'h2 && cfg_done === 1 && n_sv - sv0 == 1 &&
           count_op(m, 8'h02) == 2 && u_hi.mr_resets - mr0 == 2 * HAS_MR && u_hi.n_op - m == 21);
     $display("    tek hata: err %0d code %h, init sayisi %0d, okuma %0d", err, err_code, count_op(m, 8'h02), n_sv - sv0);
-    m = u_hi.n_op; sv0 = n_sv;
+    force_full_init; m = u_hi.n_op; sv0 = n_sv;
     u_hi.inj_rb_flip = 2;
     pulse_start; wait_idle(400000.0);
     u_hi.inj_rb_flip = 0;
     ok2 = (err === 1 && err_code === 4'h2 && cfg_done === 0 && busy === 0 && count_op(m, 8'h02) == 4 &&
            count_op(m, 8'hF8) == 0 && n_sv == sv0);
     $display("    surekli hata: init denemesi %0d (ERR_LIMIT 4), F8 %0d, cfg_done %0d", count_op(m, 8'h02), count_op(m, 8'hF8), cfg_done);
+    m = u_hi.n_op;
     pulse_start; wait_idle(100000.0);
-    ok = ok && (err === 0 && cfg_done === 1);
+    // ERR_LIMIT ile durduktan sonraki start: tam init (nMR + 02..9E)
+    ok = ok && (err === 0 && cfg_done === 1 && count_op(m, 8'h02) == 1 && count_op(m, 8'h9E) == 1);
     // (c) her geri okuma register'ı ayrı ayrı karşılaştırılıyor mu: 82, 84, BA, BC, 9E
     ok3 = 1;
     for (j = 0; j < 5; j = j + 1) begin
+      force_full_init;
       m = u_hi.n_op;
       u_hi.inj_rb_op = (j == 0) ? 8'h82 : (j == 1) ? 8'h84 : (j == 2) ? 8'hBA : (j == 3) ? 8'hBC : 8'h9E;
       pulse_start; wait_idle(200000.0);
@@ -566,18 +588,23 @@ module tb_hi8436_drv;
     // ============================================================ T13
     $display("\n--- T13 self-test");
     cfg_default;
-    // (a) IDLE'dan, continuous = 0: init + self-test, okuma yok
+    // (a) IDLE'dan, continuous = 0: init + self-test, okuma yok. IES = 0: önce ayarlar bir start
+    //     ile uygulanır; self_test_req (init_done = 1, ayarlar aynı) doğrudan self-test yapar.
+    if (IES == 0) begin pulse_start; wait_idle(100000.0); end
     m = u_hi.n_op; sv0 = n_sv; i = n_st_done; j = u_hi.n_f8_test;
     pulse_st; wait_idle(200000.0);
-    exp_init; exp_add(8'h1E); exp_add(8'h02); exp_add(8'hF8); exp_add(8'h1E); exp_add(8'hF8); exp_add(8'h02); exp_add(8'h1E);
+    if (IES) exp_init; else n_exp_ops = 0;
+    exp_add(8'h1E); exp_add(8'h02); exp_add(8'hF8); exp_add(8'h1E); exp_add(8'hF8); exp_add(8'h02); exp_add(8'h1E);
     ok = (ops_match(m) && n_st_done - i == 1 && st_fail === 0 && err === 0 && n_sv == sv0 &&
           u_hi.ctrl == 8'h00 && u_hi.tmdata == 8'h00 && u_hi.n_f8_test - j == 2 && cfg_done === 1);
     show_ops(m);
     $display("    (a) IDLE'dan: st_done %0d st_fail %0d, sense_valid %0d", n_st_done - i, st_fail, n_sv - sv0);
     // (b) çalışırken: sıradaki okuma yerine self-test, sonra okumalar sürer.
     //     DS-9: band içindeki kanallar (16-23) self-test sonrası son test değerini (ALL0 -> 1) korur
+    //     IES = 0: start entegreyi reset'lemez; band kanalları önce high (0) yapılıp band'e alınır
     for (i = 0; i < 32; i = i + 1)
-      lvl[2*i +: 2] = (i < 8) ? 2'b00 : (i < 16) ? 2'b10 : (i < 24) ? 2'b01 : 2'b11;
+      lvl[2*i +: 2] = (i < 8) ? 2'b00 : (i < 16) ? 2'b10 : (i < 24) ? (IES ? 2'b01 : 2'b10) : 2'b11;
+    if (IES == 0) begin wait_ns(1500.0); for (i = 16; i < 24; i = i + 1) lvl[2*i +: 2] = 2'b01; end
     wait_ns(1500.0);
     continuous = 1'b1; period_us = 16'd10;
     pulse_start; wait_sv(2, 100000.0); s0 = sense;
@@ -585,7 +612,8 @@ module tb_hi8436_drv;
     pulse_st; wait_sv(3, 200000.0);
     ok2 = (n_st_done - i == 1 && st_fail === 0 && err === 0 && count_op(m, 8'h1E) == 3 &&
            count_op(m, 8'h02) == 2 && u_hi.ctrl == 8'h00 && e_sense == e0 && busy === 1 &&
-           sense[23:16] === 8'hFF && sense[15:0] === s0[15:0] && sense[31:24] === s0[31:24]);
+           sense[23:16] === 8'hFF && sense[15:0] === s0[15:0] && sense[31:24] === s0[31:24] &&
+           (IES != 0 || s0[23:16] === 8'h00));
     show_ops(m);
     $display("    (b) calisirken: st_done %0d | DS-9: once %h, self-test sonrasi %h (band kanallari 23:16 -> ff)",
              n_st_done - i, s0, sense);
@@ -673,7 +701,8 @@ module tb_hi8436_drv;
     pulse_start; wait_ns(5000.0);
     ok = (u_hi.frames == f0 && s_req === 1'b1 && busy === 1 && err === 0);
     release_gnt; wait_idle(100000.0);
-    ok2 = (err === 0 && cfg_done === 1 && u_hi.frames - f0 == 11 && e_req == 0);
+    // IES = 1: tam init + F8 (11 çerçeve); IES = 0: ayarlar aynı -> yalnız F8 (1 çerçeve)
+    ok2 = (err === 0 && cfg_done === 1 && u_hi.frames - f0 == (IES ? 11 : 1) && e_req == 0);
     $display("    gnt=0: cerceve %0d, req %0d | gnt=1: %0d cerceve, CS low iken req=0 sayisi %0d", 0, s_req, u_hi.frames - f0, e_req);
     result(ok && ok2, "T19 gnt=0 iken paket yok (timeout yok), req paket boyunca 1");
 
@@ -733,6 +762,104 @@ module tb_hi8436_drv;
     $display("    GND/Open: sense %h (DB3=SO<31:24>=12 ... DB0=78) | Supply/Open: sense %h", 32'h1234_5678, sense);
     result(ok && ok2, "T23 F8 byte sirasi: DB3..DB0 -> sense[31:0] (0x12345678, 0x87654321)");
 
+    // ============================================================ T24
+    $display("\n--- T24 arka arkaya iki tek okuma (init politikasi)");
+    cfg_default; pulse_start; wait_idle(100000.0);                  // ayarlar uygulanmış olsun
+    for (i = 0; i < 32; i = i + 1) lvl[2*i +: 2] = (i < 8) ? 2'b00 : (i < 16) ? 2'b10 : 2'b11;
+    wait_ns(1500.0);
+    m = u_hi.n_op; mr0 = u_hi.mr_resets; sv0 = n_sv;
+    t0 = $realtime; pulse_start; wait_sv(1, 100000.0); d = $realtime - t0; wait_idle(100000.0); s0 = sense;
+    for (i = 0; i < 16; i = i + 1) lvl[2*i +: 2] = 2'b01;           // ch0-15 band
+    wait_ns(1500.0);
+    t0 = $realtime; pulse_start; wait_sv(1, 100000.0); t1 = $realtime - t0; wait_idle(100000.0); s1 = sense;
+    // band: IES = 0 (ya da nMR yoksa) önceki durum korunur (00ff); IES = 1 + nMR: latch reset (0000, DS-10)
+    e[15:0] = (IES != 0 && HAS_MR != 0) ? 16'h0000 : 16'h00FF;
+    ok = (s0[15:0] === 16'h00FF && s1[15:0] === e[15:0] && n_sv - sv0 == 2);
+    if (IES == 0)
+      ok2 = (u_hi.n_op - m == 2 && count_op(m, 8'hF8) == 2 && u_hi.mr_resets == mr0 && d < 3200.0 && t1 < 3200.0);
+    else
+      ok2 = (count_op(m, 8'h02) == 2 && u_hi.mr_resets - mr0 == 2 * HAS_MR && d > 15000.0);
+    show_ops(m);
+    $display("    start -> sense_valid: %0.0f / %0.0f ns | sense[15:0] %h -> band %h (beklenen %h) | nMR %0d",
+             d, t1, s0[15:0], s1[15:0], e[15:0], u_hi.mr_resets - mr0);
+    result(ok && ok2, "T24 arka arkaya tek okuma: nMR / yazma yok, sure ~ okuma, band durumu korunur");
+
+    // ============================================================ T25
+    $display("\n--- T25 iki start arasinda ayar degisimi (yalniz degisen register)");
+    cfg_default; lvl = {32{2'b11}}; pulse_start; wait_idle(100000.0);   // hepsi open
+    ok = 1;
+    for (j = 0; j < 6; j = j + 1) begin
+      case (j)
+        0: go_c = 6'd10;
+        1: go_h = 6'd4;
+        2: so_c = 6'd30;
+        3: so_h = 6'd10;
+        4: bank_mode = 4'b0011;
+        default: begin bank_mode = 4'b1100; go_c = 6'd9; go_h = 6'd5; so_c = 6'd35; so_h = 6'd15; end
+      endcase
+      m = u_hi.n_op; mr0 = u_hi.mr_resets;
+      t0 = $realtime; pulse_start; wait_sv(1, 100000.0); d = $realtime - t0; wait_idle(100000.0);
+      $display("    adim %0d: start -> sense_valid %0.0f ns", j, d);
+      if (IES) begin exp_init; exp_add(8'hF8); end
+      else begin
+        n_exp_ops = 0;
+        case (j)
+          0, 1: begin exp_add(8'h3A); exp_add(8'hBA); end
+          2, 3: begin exp_add(8'h3C); exp_add(8'hBC); end
+          4:    begin exp_add(8'h04); exp_add(8'h84); end
+          default: begin exp_add(8'h04); exp_add(8'h3A); exp_add(8'h3C); exp_add(8'h84); exp_add(8'hBA); exp_add(8'hBC); end
+        endcase
+        exp_add(8'hF8);
+      end
+      if (!(ops_match(m) && u_hi.mr_resets - mr0 == (IES ? HAS_MR : 0) && err === 0 && cfg_done === 1 &&
+            u_hi.psen == {4'h0, bank_mode} && u_hi.gocval == {2'b00, go_c} && u_hi.gohys == {2'b00, go_h} &&
+            u_hi.socval == {2'b00, so_c} && u_hi.sohys == {2'b00, so_h} && sense === ref_so(lvl, bank_mode, 32'h0))) begin
+        ok = 0; $display("    !! adim %0d", j);
+      end
+      show_ops(m);
+    end
+    $display("    son: bank_mode %b -> sense %h | yazma -> F8 en kisa %0.0f ns, settle ihlali %0d",
+             bank_mode, sense, u_hi.min_settle, u_hi.e_settle);
+    result(ok && u_hi.min_settle >= 2000.0 && u_hi.e_settle == 0,
+           "T25 ayar degisimi: nMR yok, yalniz degisen register yazilip geri okunur, settle, yeni ayarla sense");
+
+    // ============================================================ T26
+    $display("\n--- T26 yapisal hatadan sonra start: nMR + tam init");
+    ok = 1;
+    for (j = 0; j < 4; j = j + 1) begin
+      cfg_default; continuous = 1'b1; period_us = 16'd10;
+      pulse_start; wait_sv(1, 100000.0);
+      case (j)
+        0: begin wait_f8_cs; force_sync_valid_low; wait_idle(50000.0); release_sync_valid; end
+        1: begin wait_f8_cs; force_sync_id(last_sync + 8'd8); wait_idle(50000.0); release_sync_id; end
+        2: begin wait_ns(2000.0); @(posedge clk) #1 force_sdi_valid(1'b1); @(posedge clk) #1 release_sdi_valid;
+                 wait_idle(10000.0); end
+        default: begin wait_f8_cs; force_sdi_valid(1'b0); wait_idle(50000.0); release_sdi_valid; end
+      endcase
+      ok2 = (err === 1 && err_code === ((j == 0) ? 4'h8 : (j == 1) ? 4'h9 : (j == 2) ? 4'hA : 4'hB) && cfg_done === 0);
+      e[3:0] = err_code;
+      continuous = 1'b0; m = u_hi.n_op; mr0 = u_hi.mr_resets;
+      pulse_start; wait_idle(100000.0);
+      exp_init; exp_add(8'hF8);
+      ok3 = (ops_match(m) && u_hi.mr_resets - mr0 == HAS_MR && err === 0 && cfg_done === 1);
+      $display("    hata kodu %h -> sonraki start: %0d paket, nMR %0d: %0s", e[3:0], u_hi.n_op - m,
+               u_hi.mr_resets - mr0, (ok2 && ok3) ? "tam init" : "HATALI");
+      if (!(ok2 && ok3)) begin ok = 0; show_ops(m); end
+    end
+    result(ok, "T26 yapisal hata (8, 9, A, B) sonrasi start: nMR + tam init");
+
+    // ============================================================ T27
+    $display("\n--- T27 self-test hatasindan sonra start: nMR + tam init");
+    cfg_default; pulse_start; wait_idle(100000.0);
+    u_hi.inj_st_bad = 1; pulse_st; wait_idle(200000.0);
+    ok = (st_fail === 1 && err === 1 && err_code === 4'h4 && cfg_done === 0);
+    m = u_hi.n_op; mr0 = u_hi.mr_resets;
+    pulse_start; wait_idle(100000.0);
+    exp_init; exp_add(8'hF8);
+    ok2 = (ops_match(m) && u_hi.mr_resets - mr0 == HAS_MR && err === 0 && st_fail === 0 && cfg_done === 1);
+    show_ops(m);
+    result(ok && ok2, "T27 self-test hatasi sonrasi start: nMR + tam init");
+
     // ============================================================ özet
     $display("\n--- Paket olcumleri (launch = ilk komut kabulu -> SYNC; CS low)");
     $display("    W1 (02/04/1E): %0.0f..%0.0f ns, CS %0.0f..%0.0f | W2 (3A/3C): %0.0f..%0.0f ns, CS %0.0f..%0.0f",
@@ -754,7 +881,7 @@ module tb_hi8436_drv;
            e_errc == 0 && e_sensev == 0 && u_hi.aborted == n_exp_abort && u_hiv.aborted == 0,
            "G   genel: model timing ihlali 0, sense/chg/act/req/err_code izleme, iptal yalniz reset testlerinde");
     $display("\nTOPLAM: %0d test gecti, %0d kaldi | timing ihlali=%0d  ->  SONUC: %0s",
-             n_pass, n_fail, i, (n_fail == 0 && n_pass == 24) ? "BASARILI" : "BASARISIZ");
+             n_pass, n_fail, i, (n_fail == 0 && n_pass == 28) ? "BASARILI" : "BASARISIZ");
     $finish;
   end
 

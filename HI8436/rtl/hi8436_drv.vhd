@@ -24,11 +24,20 @@
 --   Yazma: opcode, (DB1), DB0 tek TRANSFER'de. Okuma: opcode TRANSFER W, veri TRANSFER R.
 --   0xF8 cevabı DB3..DB0 = SO<31:24>..SO<7:0> sırasıyla gelir (s.10 Tbl 12).
 --
--- INIT SIRASI (start'ta; ANALIZ.md E.3)
---   [nMR pulse (HAS_MR) + bekleme] -> yazma: CTRL=00, PSEN=bank_mode, GOCENHYS, SOCENHYS,
---   TMDATA=00 (s.6-8 Tbl 3-7) -> geri okuma 82, 84, BA, BC, 9E ve tam byte karşılaştırma
---   -> settle (son yazmadan itibaren SETTLE_CLKS, s.19 "change of threshold <= 1 us")
---   -> cfg_done -> okuma(lar).
+-- INIT POLİTİKASI (start'ta, INIT_EVERY_START = false; ANALIZ.md E.3 + Faz 3 kararı)
+--   init_done: entegre programlandı, geri okumayla doğrulandı ve içeriği shadow
+--   register'larda (sh_*) biliniyor. rst_n ile ve şu durumlarda '0' olur: yapısal hata
+--   (8/9/A/B), geri okuma / doğrulama uyuşmazlığı (2/3, ERR_LIMIT dahil), self-test hatası.
+--   Ayrıca bir yazma dizisi başlarken '0' olur (yarıda kesilirse entegre içeriği bilinmez).
+--   * init_done = 0 (ya da INIT_EVERY_START = true): TAM INIT
+--       [nMR pulse (HAS_MR) + bekleme] -> yazma: CTRL=00, PSEN=bank_mode, GOCENHYS, SOCENHYS,
+--       TMDATA=00 (s.6-8 Tbl 3-7) -> geri okuma 82, 84, BA, BC, 9E (tam byte) -> settle
+--       (son yazmadan itibaren SETTLE_CLKS, s.19 "change of threshold <= 1 us") -> okuma(lar).
+--   * init_done = 1, latch'lenen ayarlar sh_* ile farklı: KISMİ GÜNCELLEME, nMR yok;
+--       yalnız değişen register'lar (PSEN / GOCENHYS / SOCENHYS) yazılır ve geri okunur,
+--       settle, sonra okuma. Hysteresis latch'leri korunur (DS-10).
+--   * init_done = 1, ayarlar aynı: DOĞRUDAN okuma (son yazmadan beri settle dolmuşsa hemen).
+--   cfg_done çıkışı = init_done.
 --
 -- SELF-TEST (self_test_req; s.6 Tbl 5, s.12 Test Mode)
 --   TMDATA=ALL1 -> CTRL.TEST=1 -> settle -> F8 = 0x00000000 bekle -> TMDATA=ALL0 -> settle
@@ -93,7 +102,8 @@ entity hi8436_drv is
     SYNC_TO_CLKS  : integer := 1000;  -- paket launch -> SYNC timeout (10 us; en uzun paket 2,77 us)
     CORE_RST_CLKS : integer := 4;     -- SYNC timeout sonrası core_rst pulse genişliği
     ERR_LIMIT     : integer := 4;     -- art arda veri hatası limiti
-    VERIFY_EVERY  : integer := 0      -- >0: her VERIFY_EVERY okumada bir config geri okuması
+    VERIFY_EVERY  : integer := 0;     -- >0: her VERIFY_EVERY okumada bir config geri okuması
+    INIT_EVERY_START : boolean := false  -- true: eski davranış, her start'ta nMR + tam init
   );
   port (
     clk           : in  std_logic;                      -- 100 MHz sistem clock'u
@@ -114,7 +124,7 @@ entity hi8436_drv is
     sense_valid   : out std_logic;                      -- 1 clk: sense / sense_chg / sense_act yeni
     sense_chg     : out std_logic_vector(31 downto 0);  -- yeni sense xor önceki sense
     sense_act     : out std_logic_vector(31 downto 0);  -- normalize: 1 = aktif (sense xor bank modu)
-    cfg_done      : out std_logic;                      -- entegre programlandı ve doğrulandı
+    cfg_done      : out std_logic;                      -- entegre programlı ve doğrulanmış (init_done)
     busy          : out std_logic;                      -- '1': ST_IDLE dışında
     err           : out std_logic;                      -- sticky hata
     err_code      : out std_logic_vector(3 downto 0);   -- ilk hatanın kodu
@@ -287,7 +297,14 @@ architecture rtl of hi8436_drv is
   signal err_r       : std_logic;
   signal err_code_r  : std_logic_vector(3 downto 0);
   signal err_cnt     : integer range 0 to ERR_LIMIT - 1;     -- art arda veri hatası
-  signal cfg_done_r  : std_logic;
+  signal init_done   : std_logic;                            -- entegre içeriği doğrulandı ve sh_* ile aynı
+  signal sh_bm       : std_logic_vector(3 downto 0);         -- entegreye son yazılan ve doğrulanan ayarlar
+  signal sh_goc      : std_logic_vector(5 downto 0);
+  signal sh_goh      : std_logic_vector(5 downto 0);
+  signal sh_soc      : std_logic_vector(5 downto 0);
+  signal sh_soh      : std_logic_vector(5 downto 0);
+  signal upd         : std_logic_vector(4 downto 0);         -- yazılacak / geri okunacak register'lar (idx)
+  signal d_bm, d_go, d_so : std_logic;                       -- giriş ayarı shadow'dan farklı
   signal st_done_r   : std_logic;
   signal st_fail_r   : std_logic;
   signal st_bad      : std_logic;                            -- bu self-test'te uyuşmazlık görüldü
@@ -377,6 +394,11 @@ begin
                        (bank_mode = "0000" or thr_ok(so_center, so_hyst))
               else '0';
 
+  -- start'taki ayarların entegreye son yazılanlardan farkı (kısmi güncelleme için)
+  d_bm <= '1' when bank_mode /= sh_bm else '0';
+  d_go <= '1' when go_center /= sh_goc or go_hyst /= sh_goh else '0';
+  d_so <= '1' when so_center /= sh_soc or so_hyst /= sh_soh else '0';
+
   -- yapısal hata ve kodu (aynı anda birden fazlaysa öncelik sırası)
   struct_err  <= to_hit or sync_err or sdi_unexp or sdi_miss;
   struct_code <= C_E_TIMEOUT  when to_hit = '1' else
@@ -455,6 +477,7 @@ begin
   -- Yapısal hata her durumda (ST_CORE_RST hariç) önceliklidir.
   -- ==========================================================================
   p_ctrl : process (clk, rst_n)
+    variable rb_now : std_logic;          -- bu geri okuma turunda uyuşmazlık (bu adım dahil)
   begin
     if rst_n = '0' then
       state      <= ST_IDLE;
@@ -469,7 +492,13 @@ begin
       err_r      <= '0';
       err_code_r <= C_E_NONE;
       err_cnt    <= 0;
-      cfg_done_r <= '0';
+      init_done  <= '0';
+      sh_bm      <= (others => '0');
+      sh_goc     <= (others => '0');
+      sh_goh     <= (others => '0');
+      sh_soc     <= (others => '0');
+      sh_soh     <= (others => '0');
+      upd        <= (others => '1');
       st_done_r  <= '0';
       st_fail_r  <= '0';
       st_bad     <= '0';
@@ -504,7 +533,7 @@ begin
         if err_code_r = C_E_NONE then
           err_code_r <= struct_code;
         end if;
-        cfg_done_r <= '0';
+        init_done  <= '0';
         frm_pend   <= '0';
         mr_n_r     <= '1';
         stop_pend  <= '0';
@@ -531,7 +560,6 @@ begin
               err_r      <= '0';
               err_code_r <= C_E_NONE;
               err_cnt    <= 0;
-              cfg_done_r <= '0';
               st_fail_r  <= '0';
               bm_r       <= bank_mode;
               goc_r      <= go_center;
@@ -547,11 +575,24 @@ begin
                 err_code_r <= C_E_RANGE;
                 st_pend    <= '0';
                 rd_owed    <= '0';
-              elsif HAS_MR then
-                mr_n_r <= '0';
-                state  <= ST_MR_PULSE;
+              elsif INIT_EVERY_START or init_done = '0' then
+                -- tam init: nMR (HAS_MR) + 5 yazma + 5 geri okuma
+                init_done <= '0';
+                upd       <= "11111";
+                if HAS_MR then
+                  mr_n_r <= '0';
+                  state  <= ST_MR_PULSE;
+                else
+                  state <= ST_CFG_WR;
+                end if;
+              elsif d_bm = '1' or d_go = '1' or d_so = '1' then
+                -- kısmi güncelleme: nMR yok, yalnız değişen register'lar (idx 1 PSEN, 2 GO, 3 SO)
+                init_done <= '0';
+                upd       <= '0' & d_so & d_go & d_bm & '0';
+                state     <= ST_CFG_WR;
               else
-                state <= ST_CFG_WR;
+                -- ayarlar aynı: doğrudan okuma / self-test (settle son yazmadan beri)
+                state <= ST_SETTLE;
               end if;
             end if;
 
@@ -578,8 +619,9 @@ begin
             end if;
 
           -- init yazmaları (idx 0..4)
+          -- (upd'de olmayan register atlanır, 1 clk)
           when ST_CFG_WR =>
-            if frm_pend = '0' then
+            if frm_pend = '0' and upd(idx) = '1' then
               if stop_now = '1' then
                 state <= ST_IDLE;
               else
@@ -589,7 +631,7 @@ begin
             elsif frm_cancel = '1' then
               frm_pend <= '0';
               state    <= ST_IDLE;
-            elsif pk_ok = '1' then
+            elsif frm_pend = '0' or pk_ok = '1' then
               frm_pend <= '0';
               if idx = 4 then
                 idx    <= 0;
@@ -601,9 +643,10 @@ begin
               end if;
             end if;
 
-          -- geri okuma (idx 0..4): init doğrulaması (vfy = 0) veya periyodik (vfy = 1)
+          -- geri okuma (idx 0..4, upd'deki register'lar): init / güncelleme doğrulaması
+          -- (vfy = 0) veya periyodik doğrulama (vfy = 1, upd = 11111)
           when ST_CFG_RD =>
-            if frm_pend = '0' then
+            if frm_pend = '0' and upd(idx) = '1' then
               if stop_now = '1' then
                 state <= ST_IDLE;
               else
@@ -613,18 +656,21 @@ begin
             elsif frm_cancel = '1' then
               frm_pend <= '0';
               state    <= ST_IDLE;
-            elsif pk_ok = '1' then
+            elsif frm_pend = '0' or pk_ok = '1' then
+              -- bu adımın sonucu (atlanan adımda karşılaştırma yok)
+              rb_now := rb_bad;
+              if frm_pend = '1' and rx_sh(15 downto 0) /= rb_exp then
+                rb_now := '1';
+              end if;
               frm_pend <= '0';
               if idx /= 4 then
-                idx <= idx + 1;
-                if rx_sh(15 downto 0) /= rb_exp then
-                  rb_bad <= '1';
-                end if;
-              elsif rb_bad = '1' or rx_sh(15 downto 0) /= rb_exp then
+                idx    <= idx + 1;
+                rb_bad <= rb_now;
+              elsif rb_now = '1' then
                 -- veri hatası: err sticky, entegre baştan programlanır (ERR_LIMIT'e kadar)
                 idx        <= 0;
                 err_r      <= '1';
-                cfg_done_r <= '0';
+                init_done  <= '0';
                 if err_code_r = C_E_NONE then
                   if vfy = '1' then
                     err_code_r <= C_E_VERIFY;
@@ -641,6 +687,7 @@ begin
                   state   <= ST_IDLE;
                 else
                   err_cnt <= err_cnt + 1;
+                  upd     <= "11111";             -- içerik bilinmiyor: tam init
                   if HAS_MR then
                     tmr    <= 0;
                     mr_n_r <= '0';
@@ -652,12 +699,17 @@ begin
               else
                 idx     <= 0;
                 err_cnt <= 0;
+                init_done <= '1';
+                sh_bm     <= bm_r;
+                sh_goc    <= goc_r;
+                sh_goh    <= goh_r;
+                sh_soc    <= soc_r;
+                sh_soh    <= soh_r;
                 if vfy = '1' then
                   vfy   <= '0';
                   state <= ST_PERIOD;
                 else
-                  cfg_done_r <= '1';
-                  state      <= ST_SETTLE;
+                  state <= ST_SETTLE;
                 end if;
               end if;
             end if;
@@ -689,7 +741,7 @@ begin
               if st_bad = '1' then
                 st_fail_r  <= '1';
                 err_r      <= '1';
-                cfg_done_r <= '0';
+                init_done  <= '0';
                 if err_code_r = C_E_NONE then
                   err_code_r <= C_E_SELFTEST;
                 end if;
@@ -741,6 +793,7 @@ begin
                 idx    <= 0;
                 rb_bad <= '0';
                 vfy    <= '1';
+                upd    <= "11111";
                 state  <= ST_CFG_RD;
               else
                 if VERIFY_EVERY > 0 then
@@ -781,7 +834,7 @@ begin
   busy     <= '0' when state = ST_IDLE else '1';
   err      <= err_r;
   err_code <= err_code_r;
-  cfg_done <= cfg_done_r;
+  cfg_done <= init_done;
   st_done  <= st_done_r;
   st_fail  <= st_fail_r;
   core_rst <= core_rst_r;

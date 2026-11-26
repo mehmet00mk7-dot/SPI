@@ -1,15 +1,17 @@
-M1_f8_byte_sirasi: MUTATION YAKALANDI | kalan testler: T02 T03 T04 T05 T06 T07 T08 T09 T10 T11 T12 T13 T14 T15 T16 T17 T18 T19 T20 T21 T22 T23  | timing ihlali=0
-M2_esik_byte_sirasi: MUTATION YAKALANDI | kalan testler: T02 T03 T04 T05 T06 T07 T08 T09 T10 T11 T12 T13 T14 T15 T16 T17 T18 T19 T20 T21 T22 T23  | timing ihlali=0
-M3_settle_clear_kaybi: MUTATION YAKALANDI | kalan testler: T18 G  | timing ihlali=9
+M10_yapisal_init_done: MUTATION YAKALANDI | kalan testler: T15 T26  | timing ihlali=0
+M11_ayar_karsilastirma: MUTATION YAKALANDI | kalan testler: T12 T25  | timing ihlali=0
+M1_f8_byte_sirasi: MUTATION YAKALANDI | kalan testler: T02 T03 T04 T05 T06 T07 T08 T09 T10 T11 T12 T13 T14 T15 T16 T17 T18 T19 T20 T21 T22 T23 T24 T25 T26 T27  | timing ihlali=0
+M2_esik_byte_sirasi: MUTATION YAKALANDI | kalan testler: T02 T03 T04 T05 T06 T07 T08 T09 T10 T11 T12 T13 T14 T15 T16 T17 T18 T19 T20 T21 T22 T23 T24 T25 T26 T27  | timing ihlali=0
+M3_settle_clear_kaybi: MUTATION YAKALANDI | kalan testler: T18 T25 G  | timing ihlali=11
 M4_sense_chg_xor_yok: MUTATION YAKALANDI | kalan testler: T07 T14 G  | timing ihlali=0
 M5_mr_n_reset_degeri: MUTATION YAKALANDI | kalan testler: T01 T02 T20 T21 T22  | timing ihlali=0
-M6_cpha_1: MUTATION YAKALANDI | kalan testler: G  | timing ihlali=2833
+M6_cpha_1: MUTATION YAKALANDI | kalan testler: G  | timing ihlali=2345
 M7_geri_okuma_atlanan: MUTATION YAKALANDI | kalan testler: T11  | timing ihlali=0
-M8_sdi_eksik_kontrol_yok: MUTATION YAKALANDI | kalan testler: T17 G  | timing ihlali=0
+M8_sdi_eksik_kontrol_yok: MUTATION YAKALANDI | kalan testler: T17 T26 G  | timing ihlali=0
 M9_period_telafi: MUTATION YAKALANDI | kalan testler: T06  | timing ihlali=0
 N1_sync_reset: MUTATION YAKALANDI | kalan testler: T20 T21 T22 G  | timing ihlali=2
-   N1 flop kontrolu: Düz "always @(posedge clk)" (reset'siz) flop: 50 grup, 323 bit YAPISAL KONTROL: BASARISIZ 
-5879bb4c9c6625094b956c07690d54374baae3831693d0172b80a3f7dd018319  ../rtl/hi8436_drv.vhd
-2816c214de1e1da688daf57e627786d9900abfda9eeac316d4c81a0ec9c7db65  ../rtl/hi8436_top.vhd
+   N1 flop kontrolu: Düz "always @(posedge clk)" (reset'siz) flop: 56 grup, 356 bit YAPISAL KONTROL: BASARISIZ 
+3524492c47070fe946d7540f7cf5bb515ee19b200b6580fd9fe46efaf2f09af3  ../rtl/hi8436_drv.vhd
+25dbb38b25ee070e5df5b887a81a2f871d8e3199efdcd470ad38d7dd033c1731  ../rtl/hi8436_top.vhd
 SONUC: BASARILI (butun mutation'lar yakalandi, negatif kontrol dogru)
 exit=0
