@@ -8,7 +8,9 @@
 #     UNUSED_STORE: model kullanılmayan register bitlerini saklar mı (0/1, DS-3)
 #     HAS_MR      : DUT HAS_MR generic'i (1 = true, 0 = false; varsayılan 1)
 #     INIT_EVERY_START: 1 = her start'ta nMR + tam init (eski davranış), 0 = init politikası (varsayılan)
-# İkinci DUT (T14) VERIFY_EVERY = 8 ile ayrıca sentezlenir, modül adlarına _v eklenir.
+# Ana DUT periyodik doğrulamayı kapatır (-gVERIFY_EVERY=0, deterministik paket sayımı).
+# İkinci DUT (T14, T28) VARSAYILAN generic'lerle (VERIFY_EVERY = 16) ayrıca sentezlenir,
+# modül adlarına _v eklenir.
 # Başarıda "SONUC: BASARILI" ve exit 0; aksi halde exit 1.
 set -e
 cd "$(dirname "$0")"
@@ -20,8 +22,8 @@ B=$(mktemp -d build_XXXXXX)
 trap 'rm -rf $B' EXIT
 ghdl -a --std=08 --workdir=$B $CORE/spi_exec_shiftreg.vhd $CORE/spi_exec.vhd \
   $RTL/hi8436_drv.vhd $RTL/hi8436_top.vhd
-ghdl --synth --std=08 --workdir=$B -gDATA_WIDTH=$DW -gHAS_MR=$MRB -gINIT_EVERY_START=$IESB --out=verilog hi8436_top > $B/net.v
-ghdl --synth --std=08 --workdir=$B -gDATA_WIDTH=$DW -gHAS_MR=$MRB -gINIT_EVERY_START=$IESB -gVERIFY_EVERY=8 --out=verilog hi8436_top > $B/net_v.v
+ghdl --synth --std=08 --workdir=$B -gDATA_WIDTH=$DW -gHAS_MR=$MRB -gINIT_EVERY_START=$IESB -gVERIFY_EVERY=0 --out=verilog hi8436_top > $B/net.v
+ghdl --synth --std=08 --workdir=$B -gDATA_WIDTH=$DW -gHAS_MR=$MRB -gINIT_EVERY_START=$IESB --out=verilog hi8436_top > $B/net_v.v
 python3 -I - $B/net_v.v <<'PY'
 import re,sys
 p=sys.argv[1]; s=open(p).read()

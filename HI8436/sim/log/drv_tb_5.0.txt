@@ -62,9 +62,9 @@ tb_hi8436_drv: T_SO = 5.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 0, HAS_MR = 1, INIT
     (d) stop self-test sirasinda: test tamamlandi (17 paket), okuma yok
   PASS  T13 self-test: IDLE'dan / calisirken, DS-9, hata -> dur, stop ertelenir
 
---- T14 periyodik dogrulama (VERIFY_EVERY = 8) + POR glitch
-    dogrulama paketleri her 8 okumada: evet | POR sonrasi: err 1 code 3, yeniden init 1, okumalar suruyor
-  PASS  T14 VERIFY_EVERY: her 8 okumada dogrulama; POR -> kod 3, yeniden init
+--- T14 periyodik dogrulama (varsayilan VERIFY_EVERY = 16) + POR glitch
+    dogrulama paketleri her 16 okumada: evet | POR sonrasi: err 1 code 3, yeniden init 1, okumalar suruyor
+  PASS  T14 VERIFY_EVERY (16): her 16 okumada 5 register dogrulama; POR -> kod 3, yeniden init
 
 --- T15 SYNC timeout (sync_valid force 0) -> core_rst
     err 1 code 8, core_rst pulse 4 clk
@@ -131,6 +131,14 @@ tb_hi8436_drv: T_SO = 5.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 0, HAS_MR = 1, INIT
     op: 02 04 3a 3c 1e 82 84 ba bc 9e f8
   PASS  T27 self-test hatasi sonrasi start: nMR + tam init
 
+--- T28 POR tespiti (varsayilan generic'ler, VERIFY_EVERY = 16)
+    (a) surekli, POR #0: tespit 13 okuma sonra (<= 16), kod 3, tam init 1, sense 5a3c96e1
+    (a) surekli, POR #1: tespit 2 okuma sonra (<= 16), kod 3, tam init 1, sense 5a3c96e1
+    (a) surekli, POR #2: tespit 16 okuma sonra (<= 16), kod 3, tam init 1, sense 5a3c96e1
+    (b) 17 tek okuma: dogrulama turu 1 (IES=0: 1..2 beklenir; IES=1: her start tam init)
+    (b) tek okuma POR: tespit 12. start'ta, kod 3, cfg_done 1, sense 5a3c96e1
+  PASS  T28 POR: surekli ve tek okumada <= 16 okuma icinde kod 3 -> tam init -> dogru sense
+
 --- Paket olcumleri (launch = ilk komut kabulu -> SYNC; CS low)
     W1 (02/04/1E): 1300..1300 ns, CS 1120..1120 | W2 (3A/3C): 1780..1780 ns, CS 1600..1600
     R1 (82/84/9E): 1320..1320 ns, CS 1140..1140 | R2 (BA/BC): 1800..1800 ns, CS 1620..1620
@@ -146,7 +154,7 @@ tb_hi8436_drv: T_SO = 5.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 0, HAS_MR = 1, INIT
              mode=0 reserved=0 chaining=0 settle=0 test-esik=0  -> toplam 0
       olculen min: tCYC 60.0 tSCKH 30.0 tSCKL 30.0 tCES 120.0 tCHH 100.0 tCEH 70.0 tCPH 210.0 tDS 30.0 tDH 30.0 tMR 200.0 ns
       yazma -> F8 okuma en kisa: 2850.0 ns (settle siniri 1000 ns)
-    HI-8436 model: cerceve=59 yazma=14 iptal=0 nMR reset=2 POR enj.=1 | F8=24 (test 0)
+    HI-8436 model: cerceve=260 yazma=49 iptal=0 nMR reset=7 POR enj.=5 | F8=145 (test 0)
       ihlal: tCYC=0 tSCKH=0 tSCKL=0 tCES=0 tCHH=0 tCEH=0 tCPH=0 tDS=0 tDH=0 tMR=0
              mode=0 reserved=0 chaining=0 settle=0 test-esik=0  -> toplam 0
       olculen min: tCYC 60.0 tSCKH 30.0 tSCKL 30.0 tCES 120.0 tCHH 100.0 tCEH 70.0 tCPH 210.0 tDS 30.0 tDH 30.0 tMR 200.0 ns
@@ -154,6 +162,6 @@ tb_hi8436_drv: T_SO = 5.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 0, HAS_MR = 1, INIT
     Iptal edilen cerceve: 3, beklenen (T20-T22 reset) 3 | VERIFY DUT iptal 0
   PASS  G   genel: model timing ihlali 0, sense/chg/act/req/err_code izleme, iptal yalniz reset testlerinde
 
-TOPLAM: 28 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
-../tb/tb_hi8436_drv.v:885: $finish called at 17719500 (100ps)
+TOPLAM: 29 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+../tb/tb_hi8436_drv.v:959: $finish called at 24309400 (100ps)
 exit=0

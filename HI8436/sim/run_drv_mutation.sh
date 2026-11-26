@@ -44,6 +44,9 @@ muts = {
  'M10_yapisal_init_done': [(D, "        init_done  <= '0';\n        frm_pend   <= '0';\n        mr_n_r     <= '1';",
                                "        frm_pend   <= '0';\n        mr_n_r     <= '1';")],
  # M11: ayar karşılaştırması bir alanı atlıyor (so_hyst)
+ # M12: periyodik doğrulamada eşik register'ları atlanıyor (yalnız CTRL okunuyor)
+ 'M12_dogrulama_yalniz_ctrl': [(D, "vfy    <= '1';\n                upd    <= \"11111\";",
+                                   "vfy    <= '1';\n                upd    <= \"00001\";")],
  'M11_ayar_karsilastirma': [(D, "d_so <= '1' when so_center /= sh_soc or so_hyst /= sh_soh else '0';",
                                 "d_so <= '1' when so_center /= sh_soc else '0';")],
 }

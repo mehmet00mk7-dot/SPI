@@ -1,12 +1,12 @@
 always blokları (sensitivity, adet):
-     99 always @(posedge clk or posedge <net>)
-Netlist: flopchk_P43aGK/net.v | top: hi8436_top
+    100 always @(posedge clk or posedge <net>)
+Netlist: flopchk_9RvndN/net.v | top: hi8436_top
 instance                     flop grubu   bit  async reset kaynağı
 hi8436_top                            1     1  posedge clk or posedge <rst_n (doğrudan, ~rst_n)>
-hi8436_top.u_drv                     55   355  posedge clk or posedge <rst_n (doğrudan, ~rst_n)>
+hi8436_top.u_drv                     56   359  posedge clk or posedge <rst_n (doğrudan, ~rst_n)>
 hi8436_top.u_spi                     35   101  posedge clk or posedge <rst_n -> p_core_resetn flop'u (hi8436_top:n52_q)>
 hi8436_top.u_spi.u_shiftreg           8    44  posedge clk or posedge <rst_n -> p_core_resetn flop'u (hi8436_top:n52_q)>
-TOPLAM                               99   501
+TOPLAM                              100   505
 Düz "always @(posedge clk)" (reset'siz) flop: 0 grup, 0 bit
 Onaylı reset'siz register: yok
 Kaynağı rst_n'ye izlenemeyen / türetilmiş async reset: 0

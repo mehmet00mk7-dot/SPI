@@ -63,7 +63,7 @@ entity hi8436_top is
     SYNC_TO_CLKS     : integer := 1000;   -- SYNC timeout (10 us)
     CORE_RST_CLKS    : integer := 4;      -- core_rst pulse
     ERR_LIMIT        : integer := 4;      -- art arda veri hatası limiti
-    VERIFY_EVERY     : integer := 0;      -- periyodik config doğrulaması (0 = kapalı, K-9)
+    VERIFY_EVERY     : integer := 16;     -- periyodik config doğrulaması, POR tespiti (0 = kapalı)
     INIT_EVERY_START : boolean := false;  -- true: her start'ta nMR + tam init (eski davranış)
     CFG_FROM_GENERIC : boolean := false;  -- true: ayarlar DEF_* generic'lerinden
     DEF_BANK_MODE    : integer := 0;      -- 0..15, PSEN<3:0>

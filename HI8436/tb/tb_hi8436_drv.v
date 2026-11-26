@@ -27,8 +27,11 @@
 // Model timing ihlali toplamı 0 olmalı; iptal edilen çerçeve yalnız T20-T22'de (reset).
 //
 // İç sinyallere (force / izleme) Icarus'ta hierarchical referansla, Questa'da
-// (+define+QUESTA) SignalSpy ile erişilir. T14 ikinci bir DUT (VERIFY_EVERY = 8) kullanır:
-// Icarus'ta netlist modülü hi8436_top_v, Questa'da hi8436_top #(.VERIFY_EVERY(8)).
+// (+define+QUESTA) SignalSpy ile erişilir.
+// İki DUT: u_dut (senaryo testleri) periyodik doğrulamayı kapatır (VERIFY_EVERY = 0), böylece
+// paket sayımları deterministiktir. u_dutv VARSAYILAN generic'lerle (VERIFY_EVERY = 16) çalışır
+// ve T14 (doğrulama paketleri) ile T28 (POR tespiti) tarafından kullanılır. Icarus'ta netlist
+// modülleri hi8436_top / hi8436_top_v, Questa'da hi8436_top #(.VERIFY_EVERY(0)) / hi8436_top.
 // ============================================================================
 `timescale 1ns/100ps
 
@@ -58,7 +61,7 @@ module tb_hi8436_drv;
   wire        spi_sclk, spi_mosi, spi_cs_n, spi_miso, spi_mr_n;
 
 `ifdef QUESTA
-  hi8436_top #(.DATA_WIDTH(DW), .HAS_MR(HAS_MR != 0), .INIT_EVERY_START(IES != 0)) u_dut (
+  hi8436_top #(.DATA_WIDTH(DW), .HAS_MR(HAS_MR != 0), .INIT_EVERY_START(IES != 0), .VERIFY_EVERY(0)) u_dut (
 `else
   hi8436_top u_dut (
 `endif
@@ -73,14 +76,14 @@ module tb_hi8436_drv;
   hi8436_model #(.T_SO(T_SO), .T_SENSE(1000.0), .UNUSED_STORE(UNUSED_STORE)) u_hi (
     .ncs(spi_cs_n), .sck(spi_sclk), .si(spi_mosi), .nmr(spi_mr_n), .so(spi_miso), .sense_lvl(lvl));
 
-  // ---------------------------------------------------------------- VERIFY_EVERY = 8 DUT (T14)
+  // ---------------------------------------------------------------- varsayılan generic'li DUT (T14, T28)
   reg         startv = 0, stopv = 0, contv = 0;
   wire [31:0] sensev, sense_chgv, sense_actv;
   wire        sense_validv, cfg_donev, busyv, errv, st_donev, st_failv;
   wire [3:0]  err_codev;
   wire        v_sclk, v_mosi, v_cs_n, v_miso, v_mr_n;
 `ifdef QUESTA
-  hi8436_top #(.DATA_WIDTH(DW), .HAS_MR(HAS_MR != 0), .INIT_EVERY_START(IES != 0), .VERIFY_EVERY(8)) u_dutv (
+  hi8436_top #(.DATA_WIDTH(DW), .HAS_MR(HAS_MR != 0), .INIT_EVERY_START(IES != 0)) u_dutv (
 `else
   hi8436_top_v u_dutv (
 `endif
@@ -324,6 +327,21 @@ module tb_hi8436_drv;
       for (i = m; i < u_hi.n_op; i = i + 1) if (u_hi.op_log[i] == o) count_op = count_op + 1;
     end
   endfunction
+  function integer count_opv(input integer m, input [7:0] o);   // u_hiv için
+    integer i;
+    begin
+      count_opv = 0;
+      for (i = m; i < u_hiv.n_op; i = i + 1) if (u_hiv.op_log[i] == o) count_opv = count_opv + 1;
+    end
+  endfunction
+  task v_start_wait;   // u_dutv: start pulse'ı, IDLE'a dönene kadar bekle
+    real t0v;
+    begin
+      @(negedge clk) startv = 1'b1; @(negedge clk) startv = 1'b0;
+      t0v = $realtime; @(negedge clk);
+      while (busyv !== 1'b0 && $realtime - t0v < 100000.0) @(negedge clk);
+    end
+  endtask
   task show_ops(input integer m);
     integer i;
     begin
@@ -633,15 +651,15 @@ module tb_hi8436_drv;
     result(ok && ok2 && ok3, "T13 self-test: IDLE'dan / calisirken, DS-9, hata -> dur, stop ertelenir");
 
     // ============================================================ T14
-    $display("\n--- T14 periyodik dogrulama (VERIFY_EVERY = 8) + POR glitch");
+    $display("\n--- T14 periyodik dogrulama (varsayilan VERIFY_EVERY = 16) + POR glitch");
     i = u_hiv.n_op;
     @(negedge clk) begin contv = 1'b1; startv = 1'b1; end @(negedge clk) startv = 1'b0;
-    t0 = $realtime; while (n_svv < 18 && $realtime - t0 < 400000.0) @(negedge clk);
+    t0 = $realtime; while (n_svv < 34 && $realtime - t0 < 800000.0) @(negedge clk);
     ok = 1;
-    // init (10) + F8 ve her 8 okumada bir 82 84 BA BC 9E
-    for (j = i + 10; j < i + 10 + 13; j = j + 1)
-      if (u_hiv.op_log[j] !== ((j - i - 10 < 8) ? 8'hF8 : (j - i - 10 == 8) ? 8'h82 : (j - i - 10 == 9) ? 8'h84 :
-                               (j - i - 10 == 10) ? 8'hBA : (j - i - 10 == 11) ? 8'hBC : 8'h9E)) ok = 0;
+    // init (10) + 16 F8 + 82 84 BA BC 9E + 16 F8 + 82 ...
+    for (j = 0; j < 42; j = j + 1)
+      if (u_hiv.op_log[i + 10 + j] !== ((j % 21 < 16) ? 8'hF8 : (j % 21 == 16) ? 8'h82 : (j % 21 == 17) ? 8'h84 :
+                                        (j % 21 == 18) ? 8'hBA : (j % 21 == 19) ? 8'hBC : 8'h9E)) ok = 0;
     m = u_hiv.n_op; sv0 = n_svv;
     u_hiv.por;
     t0 = $realtime; while (!(errv === 1'b1 && cfg_donev === 1'b1 && n_svv > sv0 + 3) && $realtime - t0 < 400000.0) @(negedge clk);
@@ -650,9 +668,9 @@ module tb_hi8436_drv;
     j = 0; for (i = m; i < u_hiv.n_op; i = i + 1) if (u_hiv.op_log[i] == 8'h02) j = j + 1;
     @(negedge clk) stopv = 1'b1; @(negedge clk) stopv = 1'b0;
     t0 = $realtime; while (busyv !== 1'b0 && $realtime - t0 < 20000.0) @(negedge clk);
-    $display("    dogrulama paketleri her 8 okumada: %0s | POR sonrasi: err %0d code %h, yeniden init %0d, okumalar suruyor",
+    $display("    dogrulama paketleri her 16 okumada: %0s | POR sonrasi: err %0d code %h, yeniden init %0d, okumalar suruyor",
              ok ? "evet" : "HAYIR", errv, err_codev, j);
-    result(ok && ok2 && j == 1 && busyv === 0, "T14 VERIFY_EVERY: her 8 okumada dogrulama; POR -> kod 3, yeniden init");
+    result(ok && ok2 && j == 1 && busyv === 0, "T14 VERIFY_EVERY (16): her 16 okumada 5 register dogrulama; POR -> kod 3, yeniden init");
 
     // ============================================================ T15
     $display("\n--- T15 SYNC timeout (sync_valid force 0) -> core_rst");
@@ -860,6 +878,62 @@ module tb_hi8436_drv;
     show_ops(m);
     result(ok && ok2, "T27 self-test hatasi sonrasi start: nMR + tam init");
 
+    // ============================================================ T28
+    // u_dutv: varsayılan generic'ler (VERIFY_EVERY = 16); sabit ayarlar bank_mode 0011,
+    // GO 9/5, SO 35/15, period 5 us. POR: modelde bütün register'lar 0x00.
+    $display("\n--- T28 POR tespiti (varsayilan generic'ler, VERIFY_EVERY = 16)");
+    w = 32'h5A3C_96E1; lvl = lvl_for(w, 4'b0011); wait_ns(1500.0);
+    // (a) sürekli okuma: POR üç farklı sayaç fazında; #2 en kötü durum (doğrulama turu biter
+    //     bitmez POR -> tam 16 okuma sonra yakalanmalı)
+    @(negedge clk) begin contv = 1'b1; startv = 1'b1; end @(negedge clk) startv = 1'b0;
+    t0 = $realtime; while (cfg_donev !== 1'b1 && $realtime - t0 < 100000.0) @(negedge clk);
+    ok = 1;
+    for (k = 0; k < 3; k = k + 1) begin
+      sv0 = n_svv; t0 = $realtime;
+      if (k < 2)
+        while (n_svv < sv0 + ((k == 0) ? 3 : 11) && $realtime - t0 < 400000.0) @(negedge clk);
+      else begin   // doğrulamanın son paketi (9E) çözülsün, paket bitsin
+        i = u_hiv.n_op;
+        while (count_opv(i, 8'h9E) == 0 && $realtime - t0 < 400000.0) #10;
+        wait_ns(1500.0);
+      end
+      // tespit anı = driver'ın yeniden tam init'e başlaması (modelde yeni 02 yazması); err sticky
+      // olduğu için (ilk POR'dan kalır) err'in yükselişi ölçü olarak kullanılamaz
+      a0 = n_svv; m = u_hiv.n_op; u_hiv.por;
+      t0 = $realtime; while (count_opv(m, 8'h02) == 0 && $realtime - t0 < 400000.0) #10;
+      j = n_svv - a0; e[3:0] = err_codev;
+      sv0 = n_svv; t0 = $realtime;
+      while (!(cfg_donev === 1'b1 && n_svv > sv0 + 2) && $realtime - t0 < 400000.0) @(negedge clk);
+      // j = POR'dan tespite kadar tamamlanan okuma: 0 (POR bir doğrulama turunun ortasına denk
+      // geldiyse) .. 16 (POR doğrulamadan hemen sonra geldiyse)
+      ok2 = (e[3:0] == 4'h3 && j <= 16 && (k != 2 || j == 16) && cfg_donev === 1 && sensev === w && u_hiv.psen == 8'h03 &&
+             u_hiv.gohys == 8'h05 && u_hiv.gocval == 8'h09 && u_hiv.sohys == 8'h0F && u_hiv.socval == 8'h23 &&
+             count_opv(m, 8'h02) == 1);
+      $display("    (a) surekli, POR #%0d: tespit %0d okuma sonra (<= 16), kod %h, tam init %0d, sense %h",
+               k, j, e[3:0], count_opv(m, 8'h02), sensev);
+      if (!ok2) ok = 0;
+    end
+    @(negedge clk) stopv = 1'b1; @(negedge clk) stopv = 1'b0;
+    t0 = $realtime; while (busyv !== 1'b0 && $realtime - t0 < 50000.0) @(negedge clk);
+    // (b) tek okuma (start başına bir okuma): sayaç start'lar arasında sürer
+    @(negedge clk) contv = 1'b0;
+    m = u_hiv.n_op;
+    for (k = 0; k < 17; k = k + 1) v_start_wait;
+    i = count_opv(m, 8'hBA);                    // doğrulama turu sayısı (IES = 0'da init yok)
+    ok3 = (IES != 0) ? (i == 17) : (i >= 1 && i <= 2 && count_opv(m, 8'h02) == 0 && count_opv(m, 8'hF8) == 17);
+    $display("    (b) 17 tek okuma: dogrulama turu %0d (IES=0: 1..2 beklenir; IES=1: her start tam init)", i);
+    m = u_hiv.n_op; u_hiv.por;
+    j = 0;
+    while (j < 20 && !(errv === 1'b1 || (IES != 0 && j >= 1))) begin v_start_wait; j = j + 1; end
+    e[3:0] = err_codev;
+    if (IES == 0)
+      ok3 = ok3 && (errv === 1 && e[3:0] == 4'h3 && j >= 1 && j <= 16 && cfg_donev === 1 && sensev === w &&
+                    count_opv(m, 8'h02) == 1 && u_hiv.psen == 8'h03 && u_hiv.gohys == 8'h05);
+    else
+      ok3 = ok3 && (errv === 0 && j == 1 && cfg_donev === 1 && sensev === w && count_opv(m, 8'h02) == 1);
+    $display("    (b) tek okuma POR: tespit %0d. start'ta, kod %h, cfg_done %0d, sense %h", j, e[3:0], cfg_donev, sensev);
+    result(ok && ok3 && e_sensev == 0, "T28 POR: surekli ve tek okumada <= 16 okuma icinde kod 3 -> tam init -> dogru sense");
+
     // ============================================================ özet
     $display("\n--- Paket olcumleri (launch = ilk komut kabulu -> SYNC; CS low)");
     $display("    W1 (02/04/1E): %0.0f..%0.0f ns, CS %0.0f..%0.0f | W2 (3A/3C): %0.0f..%0.0f ns, CS %0.0f..%0.0f",
@@ -881,7 +955,7 @@ module tb_hi8436_drv;
            e_errc == 0 && e_sensev == 0 && u_hi.aborted == n_exp_abort && u_hiv.aborted == 0,
            "G   genel: model timing ihlali 0, sense/chg/act/req/err_code izleme, iptal yalniz reset testlerinde");
     $display("\nTOPLAM: %0d test gecti, %0d kaldi | timing ihlali=%0d  ->  SONUC: %0s",
-             n_pass, n_fail, i, (n_fail == 0 && n_pass == 28) ? "BASARILI" : "BASARISIZ");
+             n_pass, n_fail, i, (n_fail == 0 && n_pass == 29) ? "BASARILI" : "BASARISIZ");
     $finish;
   end
 

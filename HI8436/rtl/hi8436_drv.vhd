@@ -73,6 +73,16 @@
 --   0x2 RB_MISMATCH     : init geri okuma uyuşmazlığı. Veri hatası: init tekrarlanır,
 --                         art arda ERR_LIMIT kez -> durur.
 --   0x3 VERIFY_MISMATCH : periyodik doğrulamada uyuşmazlık (VERIFY_EVERY > 0) -> yeniden init.
+--
+-- PERİYODİK DOĞRULAMA (VERIFY_EVERY, varsayılan 16)
+--   Her VERIFY_EVERY F8 okumasında bir, okumanın hemen ardından 5 register geri okunur
+--   (82, 84, BA, BC, 9E). GOCENHYS ve SOCENHYS her turda okunur: geçerli bir eşik kodu
+--   asla 0x00 değildir (HYS >= 1), bu yüzden entegrenin POR / besleme kesintisiyle 0x00'a
+--   dönmesi kesin yakalanır (CTRL / TMDATA tek başına yetmez, reset değerleri programlanan
+--   değerle aynıdır). Sayaç start'lar arasında sıfırlanmaz (tek okuma kullanımında da
+--   çalışır); yalnız başarılı bir init / güncelleme geri okumasında 0'lanır. stop ile
+--   kesilen doğrulama kaybolmaz (sonraki okumada yapılır). POR tespit gecikmesi en fazla
+--   VERIFY_EVERY okuma.
 --   0x4 SELFTEST_FAIL   : self-test sonucu beklenenden farklı -> durur.
 --   0x8 SYNC_TIMEOUT    : launch'tan SYNC_TO_CLKS içinde SYNC yok -> core_rst, durur.
 --   0x9 SYNC_ID         : beklenmeyen anda ya da yanlış id'li SYNC -> durur.
@@ -102,7 +112,7 @@ entity hi8436_drv is
     SYNC_TO_CLKS  : integer := 1000;  -- paket launch -> SYNC timeout (10 us; en uzun paket 2,77 us)
     CORE_RST_CLKS : integer := 4;     -- SYNC timeout sonrası core_rst pulse genişliği
     ERR_LIMIT     : integer := 4;     -- art arda veri hatası limiti
-    VERIFY_EVERY  : integer := 0;     -- >0: her VERIFY_EVERY okumada bir config geri okuması
+    VERIFY_EVERY  : integer := 16;    -- >0: her VERIFY_EVERY okumada bir config geri okuması (0 = kapalı)
     INIT_EVERY_START : boolean := false  -- true: eski davranış, her start'ta nMR + tam init
   );
   port (
@@ -568,7 +578,6 @@ begin
               soh_r      <= so_hyst;
               st_pend    <= self_test_req;
               rd_owed    <= start;
-              rd_cnt     <= 0;
               if start_ok = '0' then
                 -- geçersiz eşik kodu: start reddedilir, SPI'a hiçbir şey gönderilmez
                 err_r      <= '1';
@@ -648,6 +657,9 @@ begin
           when ST_CFG_RD =>
             if frm_pend = '0' and upd(idx) = '1' then
               if stop_now = '1' then
+                if vfy = '1' then
+                  rd_cnt <= C_VFY_MAX - 1;        -- kesilen doğrulama sonraki okumada
+                end if;
                 state <= ST_IDLE;
               else
                 frm_go   <= '1';
@@ -655,7 +667,10 @@ begin
               end if;
             elsif frm_cancel = '1' then
               frm_pend <= '0';
-              state    <= ST_IDLE;
+              if vfy = '1' then
+                rd_cnt <= C_VFY_MAX - 1;
+              end if;
+              state <= ST_IDLE;
             elsif frm_pend = '0' or pk_ok = '1' then
               -- bu adımın sonucu (atlanan adımda karşılaştırma yok)
               rb_now := rb_bad;
@@ -706,10 +721,20 @@ begin
                 sh_soc    <= soc_r;
                 sh_soh    <= soh_r;
                 if vfy = '1' then
-                  vfy   <= '0';
-                  state <= ST_PERIOD;
+                  -- doğrulama okuma sonrası yapıldı: sürekli modda period, değilse
+                  -- (bekleyen self-test varsa) self-test ya da IDLE
+                  vfy <= '0';
+                  if continuous = '1' and stop_now = '0' then
+                    state <= ST_PERIOD;
+                  elsif st_pend = '1' and stop_now = '0' then
+                    st_bad <= '0';
+                    state  <= ST_TEST;
+                  else
+                    state <= ST_IDLE;
+                  end if;
                 else
-                  state <= ST_SETTLE;
+                  rd_cnt <= 0;                    -- entegre şimdi doğrulandı
+                  state  <= ST_SETTLE;
                 end if;
               end if;
             end if;
@@ -780,26 +805,29 @@ begin
             elsif pk_ok = '1' then
               frm_pend <= '0';
               rd_owed  <= '0';
-              if continuous = '0' or stop_now = '1' then
-                if st_pend = '1' and stop_now = '0' then
-                  idx    <= 0;
-                  st_bad <= '0';
-                  state  <= ST_TEST;
-                else
-                  state <= ST_IDLE;
-                end if;
-              elsif VERIFY_EVERY > 0 and rd_cnt = C_VFY_MAX - 1 then
+              idx      <= 0;
+              if VERIFY_EVERY > 0 and rd_cnt = C_VFY_MAX - 1 and stop_now = '0' then
+                -- periyodik doğrulama (tek okuma ve sürekli modda): 5 register geri okunur,
+                -- eşik register'ları (BA, BC) dahil -> POR kesin yakalanır
                 rd_cnt <= 0;
-                idx    <= 0;
                 rb_bad <= '0';
                 vfy    <= '1';
                 upd    <= "11111";
                 state  <= ST_CFG_RD;
               else
-                if VERIFY_EVERY > 0 then
+                if VERIFY_EVERY > 0 and rd_cnt /= C_VFY_MAX - 1 then
                   rd_cnt <= rd_cnt + 1;
                 end if;
-                state <= ST_PERIOD;
+                if continuous = '0' or stop_now = '1' then
+                  if st_pend = '1' and stop_now = '0' then
+                    st_bad <= '0';
+                    state  <= ST_TEST;
+                  else
+                    state <= ST_IDLE;
+                  end if;
+                else
+                  state <= ST_PERIOD;
+                end if;
               end if;
             end if;
 
