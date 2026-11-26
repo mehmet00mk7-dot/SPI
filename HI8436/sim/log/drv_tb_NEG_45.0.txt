@@ -1,0 +1,132 @@
+tb_hi8436_drv: T_SO = 45.0 ns, DATA_WIDTH = 8, UNUSED_STORE = 0, HAS_MR = 1
+
+--- T01 reset sonrasi cikislar
+  PASS  T01 reset sonrasi cikislar, start'siz SPI trafigi yok
+
+--- T02 init (nMR, 5 yazma, 5 geri okuma, dogrulama)
+    nMR pulse 200 ns (>= 100), model nMR reset +4 | start -> cfg_done 100.00 us | sense 00000000
+    model register: CTRL 00 PSEN 05 GOHYS 05 GOCVAL 09 SOHYS 0f SOCVAL 23 TMDATA 00
+    op: 02 04 3a 3c 1e 82 84 ba bc 9e 02 04 3a 3c 1e 82 84 ba bc 9e 02 04 3a 3c 1e 82 84 ba bc 9e 02 04 3a 3c 1e 82 84 ba bc 9e
+  FAIL  T02 init + geri okuma, register'lar, nMR
+
+--- T03 tek okuma
+    sense 00000000 (beklenen 3c96e10f), sense_valid 0
+  FAIL  T03 tek okuma: sense dogru, 1 sense_valid, busy duser
+
+--- T04 polarite (bank_mode 0110), sense_act
+    sense 00000000 (Tbl 14 referansi 49b6db49) | sense_act 00000000
+  FAIL  T04 polarite (GND/Open, Supply/Open; GND/high/open), sense_act
+
+--- T05 hysteresis (band'de onceki durum korunur, surekli okuma)
+    00000000 -> band 00000000 -> high 00000000 -> band/GND 00000000 -> band 00000000
+  FAIL  T05 hysteresis: band icindeki kanal onceki durumunu korur (0 ve 1)
+
+--- T06 surekli okuma + period_us
+    period 20 us: F8 CS araliklari (ns): 0 0 0 0
+    period 0: arka arkaya aralik 0 ns (en yuksek okuma hizi inf kHz)
+    period 2 us (< paket suresi): aralik 0 ns
+  FAIL  T06 surekli + period_us: tam 20 us; period 0 ve 2 us arka arkaya
+
+--- T07 sense degisimi, sense_chg, gecikme
+    0 okuma, sense_chg /= 0 goruldu: 0 | tek degisim gecikmesi 0 ns (<= T_SENSE 1000 + period 5000 + paket 2770)
+  FAIL  T07 sense degisimi: sense = model, sense_chg = xor, gecikme
+
+--- T08 calisirken ayar degisikligi uygulanmaz
+    calisirken: yalniz F8 (40), register'lar eski | stop/start sonrasi PSEN 0f GO 04/0a SO 0a/1e
+  FAIL  T08 ayar degisikligi calisirken uygulanmaz, stop/start ile uygulanir
+
+--- T09 stop
+    op: 02 04 3a
+    (a) bosluk: busy 20 ns'de dustu, yeni cerceve 0 | (b) ucan paket tamamlandi, yeni cerceve 0 | (c) init: 3 paket
+  FAIL  T09 stop: boslukta hemen, ucan paket biter (iptal yok), init sirasinda
+
+--- T10 busy iken start yok sayilir
+  FAIL  T10 busy iken start: yeniden init yok, okumalar suruyor
+
+--- T11 geri okuma hatasi
+    tek hata: err 1 code 2, init sayisi 4, okuma 0
+    surekli hata: init denemesi 4 (ERR_LIMIT 4), F8 0, cfg_done 0
+    !! 0. register hatasi yakalanmadi
+    !! 1. register hatasi yakalanmadi
+    !! 2. register hatasi yakalanmadi
+    !! 3. register hatasi yakalanmadi
+    !! 4. register hatasi yakalanmadi
+    tek register hatasi (82/84/BA/BC/9E ayri ayri): hepsi yakalandi: HAYIR
+  FAIL  T11 geri okuma hatasi: err/kod 2, retry; ERR_LIMIT'te durur; her register ayri kontrol
+
+--- T12 CFG_RANGE
+    red: go_h=0, 50+5, 6-3, (bm 0001, so_h=0) -> SPI trafigi 0 | kabul: bm 0000 so_h=0, bm 1111 go_h=0
+  FAIL  T12 CFG_RANGE: gecersiz kod reddi (SPI yok), kullanilmayan mod kontrol edilmez
+
+--- T13 self-test
+    op: 02 04 3a 3c 1e 82 84 ba bc 9e 02 04 3a 3c 1e 82 84 ba bc 9e 02 04 3a 3c 1e 82 84 ba bc 9e 02 04 3a 3c 1e 82 84 ba bc 9e
+    (a) IDLE'dan: st_done 0 st_fail 0, sense_valid 0
+    op: 02 04 3a 3c 1e 82 84 ba bc 9e 02 04 3a 3c 1e 82 84 ba bc 9e 02 04 3a 3c 1e 82 84 ba bc 9e 02 04 3a 3c 1e 82 84 ba bc 9e
+    (b) calisirken: st_done 0 | DS-9: once 00000000, self-test sonrasi 00000000 (band kanallari 23:16 -> ff)
+    (c) hata: st_fail 0 err 1 code 2, model CTRL 00 TMDATA 00
+    (d) stop self-test sirasinda: test tamamlandi (11 paket), okuma yok
+  FAIL  T13 self-test: IDLE'dan / calisirken, DS-9, hata -> dur, stop ertelenir
+
+--- T14 periyodik dogrulama (VERIFY_EVERY = 8) + POR glitch
+    dogrulama paketleri her 8 okumada: HAYIR | POR sonrasi: err 1 code 2, yeniden init 0, okumalar suruyor
+  FAIL  T14 VERIFY_EVERY: her 8 okumada dogrulama; POR -> kod 3, yeniden init
+
+--- T15 SYNC timeout (sync_valid force 0) -> core_rst
+    err 1 code 2, core_rst pulse 0 clk
+  FAIL  T15 SYNC timeout: kod 8, core_rst 4 clk, start ile normal
+
+--- T16 yanlis SYNC id
+  FAIL  T16 yanlis SYNC id: kod 9, start ile normal
+
+--- T17 beklenmeyen / eksik sdi kelimesi
+    beklenmeyen: code ? | eksik: code 2
+  FAIL  T17 sdi: beklenmeyen kelime kod A, eksik kelime kod B
+
+--- T18 settle
+    yazma -> F8 en kisa 1000000000 ns (SETTLE 2 us), model settle ihlali 0
+  FAIL  T18 settle: init ve self-test sonrasi ilk F8 >= 2 us, ihlal 0
+
+--- T19 gnt / req
+    gnt=0: cerceve 0, req 0 | gnt=1: 40 cerceve, CS low iken req=0 sayisi 0
+  FAIL  T19 gnt=0 iken paket yok (timeout yok), req paket boyunca 1
+
+--- T20 reset frame ortasinda (SCK aktif)
+    1 ns sonra cikislar guvenli: evet | kendiliginden baslama yok: evet | start ile init: HAYIR | iptal 0
+  FAIL  T20 reset frame ortasinda
+
+--- T21 reset clock dururken
+  FAIL  T21 reset clock dururken: cikislar clock'suz guvenli
+
+--- T22 1 clock'luk reset
+  FAIL  T22 1 clock'luk reset
+
+--- T23 0xF8 byte sirasi
+    GND/Open: sense 12345678 (DB3=SO<31:24>=12 ... DB0=78) | Supply/Open: sense 00000000
+  FAIL  T23 F8 byte sirasi: DB3..DB0 -> sense[31:0] (0x12345678, 0x87654321)
+
+--- Paket olcumleri (launch = ilk komut kabulu -> SYNC; CS low)
+    W1 (02/04/1E): 1300..1300 ns, CS 1120..1120 | W2 (3A/3C): 1780..1780 ns, CS 1600..1600
+    R1 (82/84/9E): 1320..1320 ns, CS 1140..1140 | R2 (BA/BC): 1800..1800 ns, CS 1620..1620
+    F8: 1000000000..0 ns, CS 1000000000..0 (0 paket)
+
+--- Genel kontroller
+    sense hatasi 0 | sense_chg 0 | sense_act 0 | sense_valid genislik 0 | cfg_done'suz sense_valid 0
+    CS low iken req=0: 0 | err=0 iken err_code/=0: 0 | VERIFY DUT sense hatasi 0 | sense_valid toplam 0
+
+--- HI-8436 timing kontrolleri (model)
+    HI-8436 model: cerceve=1673 yazma=1174 iptal=0 nMR reset=169 POR enj.=0 | F8=0 (test 0)
+      ihlal: tCYC=0 tSCKH=0 tSCKL=0 tCES=0 tCHH=0 tCEH=0 tCPH=0 tDS=0 tDH=0 tMR=0
+             mode=0 reserved=0 chaining=0 settle=0 test-esik=0  -> toplam 0
+      olculen min: tCYC 60.0 tSCKH 30.0 tSCKL 30.0 tCES 120.0 tCHH 100.0 tCEH 70.0 tCPH 210.0 tDS 30.0 tDH 30.0 tMR 200.0 ns
+      yazma -> F8 okuma en kisa: 1000000000.0 ns (settle siniri 1000 ns)
+    HI-8436 model: cerceve=40 yazma=28 iptal=0 nMR reset=4 POR enj.=1 | F8=0 (test 0)
+      ihlal: tCYC=0 tSCKH=0 tSCKL=0 tCES=0 tCHH=0 tCEH=0 tCPH=0 tDS=0 tDH=0 tMR=0
+             mode=0 reserved=0 chaining=0 settle=0 test-esik=0  -> toplam 0
+      olculen min: tCYC 60.0 tSCKH 30.0 tSCKL 30.0 tCES 120.0 tCHH 100.0 tCEH 70.0 tCPH 210.0 tDS 30.0 tDH 30.0 tMR 200.0 ns
+      yazma -> F8 okuma en kisa: 1000000000.0 ns (settle siniri 1000 ns)
+    Iptal edilen cerceve: 0, beklenen (T20-T22 reset) 0 | VERIFY DUT iptal 0
+  PASS  G   genel: model timing ihlali 0, sense/chg/act/req/err_code izleme, iptal yalniz reset testlerinde
+
+TOPLAM: 2 test gecti, 22 kaldi | timing ihlali=0  ->  SONUC: BASARISIZ
+../tb/tb_hi8436_drv.v:758: $finish called at 68953700 (100ps)
+exit=1
