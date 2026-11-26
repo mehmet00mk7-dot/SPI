@@ -24,8 +24,6 @@ common/                   ortak SPI master core (bütün driver'lar buradan kull
   README.md
 ```
 
-`common/` henüz yoksa core dosyaları `AD7923/` altındadır (`AD7923/rtl/async`, `AD7923/vendor/adi`).
-
 ## Değişmez kurallar
 
 1. **Core'a dokunma.** `common/vendor/adi`, `common/rtl/async` ve `common/rtl/p1` değişmez
