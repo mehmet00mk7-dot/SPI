@@ -420,3 +420,43 @@ f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  spi_engine_exe
   sim/run_questa_ad7923_drv_vhdl.do'ya rtl/drv_sync_ref/*_sref.vhd ve tb/tb_drv_lockstep.v
   eklendi; batch modda tb_ad7923_drv'den sonra tb_drv_lockstep 3 seed x 2.000.000 clock kosar.
   Bu ortamda Questa yok: .do ve TB'nin QUESTA dali (SignalSpy) kosulmadi, Questa kosusu acik.
+
+== 10) Yorum ekleme: rtl/drv (3 dosya) ve rtl/async (2 dosya), KOD DEGISMEDI
+  Bes dosyaya Turkce aciklama yorumlari eklendi (teknik terimler Ingilizce). Kod satirlarina
+  dokunulmadi; yalniz yorum satirlari eklendi / degisti, bazi satir sonu yorumlari hizalandi.
+  rtl/async onceki gorevde "dokunma" listesindeydi; yorum eklenmesi kullanici onayiyla yapildi,
+  yeni SHA-256 listesi asagida (sim/hash/sha256_yorum.txt).
+
+  a) Token ve kod satiri kontrolu (./run_comment_check.sh c5e0676):
+     yorumlar atilinca token dizisi ve kod satirlari (girinti dahil) birebir ayni.
+  ../rtl/async/spi_exec_shiftreg.vhd: token 941/941 AYNI | kod satiri 155/155 AYNI | yorum satiri 60 -> 78
+  ../rtl/async/spi_exec.vhd: token 2865/2865 AYNI | kod satiri 500/500 AYNI | yorum satiri 95 -> 180
+  ../rtl/drv/ad7923_drv.vhd: token 3851/3851 AYNI | kod satiri 649/649 AYNI | yorum satiri 120 -> 221
+  ../rtl/drv/ad7923_ch_regs.vhd: token 351/351 AYNI | kod satiri 55/55 AYNI | yorum satiri 25 -> 35
+  ../rtl/drv/ad7923_top.vhd: token 1030/1030 AYNI | kod satiri 203/203 AYNI | yorum satiri 40 -> 74
+  SONUC: YALNIZ YORUM DEGISTI
+  NETLIST (ad7923_top, kaynak satir yorumlari haric): AYNI  596ae01e84143456
+  b) Netlist: ad7923_top'un ghdl --synth netlist'i, kaynak satir yorumlari (/* dosya:satir */)
+     atilinca onceki surumle birebir ayni (sha256 596ae01e84143456...).
+  c) Testler yeniden kosuldu (sonuclar onceki teslimle ayni):
+  T_DOUT=25.0: TOPLAM: 22 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+  T_DOUT=40.0: TOPLAM: 22 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+     core lockstep (run_lockstep.sh 16 1 1 0 2 2 1 1 200000): cycles=200000 karsilastirilan=199788 reset=12 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0  SONUC: BASARILI
+     driver lockstep 3 seed x 2.000.000 clock:
+  clock=2000002 karsilastirilan=1999942 atlanan(reset assert -> ilk posedge)=59 | FARK=0 (ilk: clock -1) | async reset kontrol=59 hata=0
+  clock=2000002 karsilastirilan=1999956 atlanan(reset assert -> ilk posedge)=45 | FARK=0 (ilk: clock -1) | async reset kontrol=45 hata=0
+  clock=2000002 karsilastirilan=1999964 atlanan(reset assert -> ilk posedge)=37 | FARK=0 (ilk: clock -1) | async reset kontrol=37 hata=0
+     netlist yapisal kontrol (run_flop_check.sh): YAPISAL KONTROL: BASARILI
+  d) SHA-256 (yorum sonrasi). vendor/adi ve rtl/p1 degismedi; rtl/async yalniz yorum:
+  b78e57872762acf81aa2980c249af1873ed394c4b23aff4b6ef14349110d46b4  rtl/async/spi_exec.vhd
+  35e51b7a7dce4c79442b6c23813e1a30cbc4799a3e6961d8ac56f938529f342c  rtl/async/spi_exec_shiftreg.vhd
+  1ca4b8fcecfd72777cbe654f2033c996410418677dba450649c3f018d0b1dc03  rtl/p1/spi_exec_p1.vhd
+  d750a860bfb4937b2e4277a0bb279ac51fc3ca2d0e823dbfc6d5ad1103a01bd9  rtl/p1/spi_exec_p1_shiftreg.vhd
+  f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  vendor/adi/spi_engine_execution.v
+  70868cc989cda94ffe54bed3e99fa86520bc812980564003c7f64621c9233460  vendor/adi/spi_engine_execution_shiftreg.v
+
+== 11) Blok diyagram
+  docs/ad7923_spi_blok_diyagram.drawio (draw.io / diagrams.net, 5 sayfa), docs/gen_drawio.py ile
+  uretilir: 1 ad7923_top, 2 ad7923_drv ic bloklari, 3 control FSM + packer FSM,
+  4 spi_exec control path, 5 spi_exec_shiftreg data path.
+

@@ -1,6 +1,6 @@
 always blokları (sensitivity, adet):
      89 always @(posedge clk or posedge <net>)
-Netlist: build/flopchk_2068/ad7923_top_net.v | top: ad7923_top
+Netlist: build/flopchk_614/ad7923_top_net.v | top: ad7923_top
 instance                     flop grubu   bit  async reset kaynağı
 ad7923_top                            1     1  posedge clk or posedge <rst_n (doğrudan, ~rst_n)>
 ad7923_top.u_drv                     42   159  posedge clk or posedge <rst_n (doğrudan, ~rst_n)>

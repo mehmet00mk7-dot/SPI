@@ -12,6 +12,12 @@
 --                 Hatayla kesilen taramada driver data_last basmadığı için gelmez.
 -- Gecikme: data_valid -> chN_valid / scan_done = 1 clk.
 --
+--   clk        : |  C   |  C+1 |
+--   data_valid : |  1   |  0   |    (data_ch = 2, data = D, data_last = L)
+--   ch2_valid  : |  0   |  1   |
+--   ch2_data   : | eski |  D   |
+--   scan_done  : |  0   |  L   |
+--
 -- RESET STRATEJİSİ
 --   * rst_n kaynağı: projedeki reset synchronizer (async assert, sync deassert,
 --     PLL lock'a bağlı). Bu blok, ad7923_drv ve core (spi_exec) aynı rst_n'den
@@ -29,35 +35,38 @@ use ieee.numeric_std.all;
 
 entity ad7923_ch_regs is
   port (
-    clk        : in  std_logic;
-    rst_n      : in  std_logic;
-    data_valid : in  std_logic;
-    data_ch    : in  std_logic_vector(1 downto 0);
-    data       : in  std_logic_vector(11 downto 0);
-    data_last  : in  std_logic;
-    ch0_data   : out std_logic_vector(11 downto 0);
-    ch1_data   : out std_logic_vector(11 downto 0);
-    ch2_data   : out std_logic_vector(11 downto 0);
-    ch3_data   : out std_logic_vector(11 downto 0);
-    ch0_valid  : out std_logic;
-    ch1_valid  : out std_logic;
-    ch2_valid  : out std_logic;
-    ch3_valid  : out std_logic;
-    scan_done  : out std_logic
+    clk        : in  std_logic;                   -- 100 MHz sistem clock'u
+    rst_n      : in  std_logic;                   -- async aktif-düşük reset
+    data_valid : in  std_logic;                   -- ad7923_drv: 1 clk, veri geçerli
+    data_ch    : in  std_logic_vector(1 downto 0);  -- ad7923_drv: verinin kanalı
+    data       : in  std_logic_vector(11 downto 0);  -- ad7923_drv: 12 bit sonuç
+    data_last  : in  std_logic;                   -- ad7923_drv: taramanın son verisi
+    ch0_data   : out std_logic_vector(11 downto 0);  -- kanal 0 son sonucu
+    ch1_data   : out std_logic_vector(11 downto 0);  -- kanal 1 son sonucu
+    ch2_data   : out std_logic_vector(11 downto 0);  -- kanal 2 son sonucu
+    ch3_data   : out std_logic_vector(11 downto 0);  -- kanal 3 son sonucu
+    ch0_valid  : out std_logic;                   -- ch0_data güncellendi (1 clk)
+    ch1_valid  : out std_logic;                   -- ch1_data güncellendi (1 clk)
+    ch2_valid  : out std_logic;                   -- ch2_data güncellendi (1 clk)
+    ch3_valid  : out std_logic;                   -- ch3_data güncellendi (1 clk)
+    scan_done  : out std_logic                    -- tarama tamamlandı (1 clk)
   );
 end entity ad7923_ch_regs;
 
 architecture rtl of ad7923_ch_regs is
 
-  constant C_NUM_CH : integer := 4;
+  constant C_NUM_CH : integer := 4;  -- AD7923 kanal sayısı
 
   type ch_data_t is array (0 to C_NUM_CH - 1) of std_logic_vector(11 downto 0);
-  signal ch_data_r   : ch_data_t;
-  signal ch_valid_r  : std_logic_vector(C_NUM_CH - 1 downto 0);
-  signal scan_done_r : std_logic;
+  signal ch_data_r   : ch_data_t;         -- kanal başına son veri
+  signal ch_valid_r  : std_logic_vector(C_NUM_CH - 1 downto 0);  -- kanal başına güncelleme pulse'ı
+  signal scan_done_r : std_logic;         -- tarama sonu pulse'ı
 
 begin
 
+  -- Kanal register'ları: pulse'lar her clock varsayılan '0'; data_valid gelince
+  -- data_ch numaralı kanal yazılır ve o kanalın valid'i 1 clk '1' olur.
+  -- scan_done, verinin data_last bitini taşır (yalnız taramanın son verisinde '1').
   p_regs : process (clk, rst_n)
   begin
     if rst_n = '0' then
@@ -75,6 +84,7 @@ begin
     end if;
   end process p_regs;
 
+  -- çıkış atamaları
   ch0_data  <= ch_data_r(0);
   ch1_data  <= ch_data_r(1);
   ch2_data  <= ch_data_r(2);

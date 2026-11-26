@@ -1,21 +1,46 @@
 -- ============================================================================
--- ad7923_top.vhd  -  AD7923 okuma bloğu: ad7923_drv + spi_exec (VHDL, async reset)
+-- ad7923_top.vhd  -  AD7923 okuma bloğu: ad7923_drv + ad7923_ch_regs + spi_exec
 --
 -- 1 driver -> 1 spi_exec -> 1 AD7923. Arbiter yok, gnt = '1'.
 --
--- v-vhdl: SPI core olarak ADI spi_engine_execution'ın VHDL çevirisi spi_exec kullanılır
--- (async reset). Davranış orijinalle lockstep simülasyonda birebir doğrulandı.
--- Değişen iki satır: component adı (spi_engine_execution -> spi_exec) ve core reset'i
--- (kombinasyonel AND yerine register'lı, aşağıda p_core_resetn).
--- Aşağıdaki orijinal açıklama Verilog sürümü içindir:
--- ad7923_ch_regs, driver'ın data_valid/data_ch/data/data_last akışından kanal başına
--- register'lar (chN_data, chN_valid) ve scan_done üretir; data_valid/data_ch/data
--- çıkışları ayrıca doğrudan dışarı verilir.
--- ADI çekirdeği (Verilog, 2026.1.0) değiştirilmeden component declaration ile
--- instantiate edilir (mixed-language). Çekirdek kullanım kuralları:
---   sdi_data_ready = sync_ready = '1', echo_sclk = '0', sdo_t / three_wire açık,
---   sdo doğrudan MOSI. Çekirdek reset'i = rst_n and not core_rst.
---   (VHDL sürümünde bu AND, aşağıdaki p_core_resetn flop'u ile değiştirildi.)
+--                    +--------------+   cmd/valid/ready   +--------------+
+--   start      ----->|              |-------------------->|              |---> spi_sclk
+--   stop       ----->|    u_drv     |   sdo_data/valid    |    u_spi     |---> spi_mosi
+--   continuous ----->|  ad7923_drv  |-------------------->|   spi_exec   |---> spi_cs_n
+--   ch_mask    ----->|              |   sdi_data/valid    |              |<--- spi_miso
+--   period_us  ----->|              |<--------------------|              |
+--   range_sel  ----->|              |   sync/valid        |              |
+--   coding_sel ----->|              |<--------------------|              |
+--   busy, err  <-----|              |                     +--------------+
+--                    +--------------+                            ^ resetn
+--                      |         |  core_rst         +---------------+
+--   data_valid,  <-----+         +------------------>| p_core_resetn |<--- rst_n
+--   data_ch, data      |  data_valid/ch/data/last    +---------------+
+--                      v
+--                    +----------------+
+--   chN_data   <-----|     u_regs     |
+--   chN_valid  <-----| ad7923_ch_regs |
+--   scan_done  <-----|                |
+--                    +----------------+
+--   rst_n ayrıca u_drv ve u_regs'in async reset'idir.
+--
+-- SPI core: ADI spi_engine_execution'ın VHDL çevirisi spi_exec (async reset).
+-- Davranış orijinal Verilog ile lockstep simülasyonda birebir doğrulandı.
+-- Orijinal Verilog entegrasyonuna göre değişen iki nokta: component adı
+-- (spi_engine_execution -> spi_exec) ve core reset'i (kombinasyonel
+-- "rst_n and not core_rst" yerine register'lı p_core_resetn).
+--
+-- ad7923_ch_regs, driver'ın data_valid / data_ch / data / data_last akışından kanal
+-- başına register'lar (chN_data, chN_valid) ve scan_done üretir; data_valid /
+-- data_ch / data çıkışları ayrıca doğrudan dışarı verilir.
+--
+-- Core kullanım kuralları:
+--   * sdi_data_ready = sync_ready = '1' (driver her zaman kabul eder)
+--   * echo_sclk = '0' (ECHO_SCLK kullanılmaz)
+--   * sdo_t / three_wire açık: MOSI her zaman sürülür, 3-wire mod yok
+--   * sdo doğrudan MOSI, sdi(0) = MISO, cs(0) = AD7923 CS
+--   * Core config'i (Mode 2, 16 bit, CLK_DIV) her frame'de driver tarafından
+--     CONFIG komutlarıyla yeniden yazılır; generic'ler yalnız reset değeridir.
 --
 -- RESET STRATEJİSİ
 --   * rst_n kaynağı: projedeki reset synchronizer. Async assert, sync deassert,
@@ -40,20 +65,20 @@ entity ad7923_top is
     CS_T    : integer := 1    -- CS komutundaki ek bekleme
   );
   port (
-    clk        : in  std_logic;
-    rst_n      : in  std_logic;
-    start      : in  std_logic;
-    stop       : in  std_logic;
-    continuous : in  std_logic;
-    ch_mask    : in  std_logic_vector(3 downto 0);
-    period_us  : in  std_logic_vector(15 downto 0);
-    range_sel  : in  std_logic;
-    coding_sel : in  std_logic;
-    data_valid : out std_logic;
-    data_ch    : out std_logic_vector(1 downto 0);
-    data       : out std_logic_vector(11 downto 0);
-    busy       : out std_logic;
-    err        : out std_logic;
+    clk        : in  std_logic;                     -- 100 MHz sistem clock'u
+    rst_n      : in  std_logic;                     -- async aktif-düşük reset (synchronizer)
+    start      : in  std_logic;                     -- tarama başlat
+    stop       : in  std_logic;                     -- taramayı durdur
+    continuous : in  std_logic;                     -- '1': sürekli tarama
+    ch_mask    : in  std_logic_vector(3 downto 0);  -- taranacak kanallar
+    period_us  : in  std_logic_vector(15 downto 0);  -- sürekli modda tarama periyodu (us)
+    range_sel  : in  std_logic;                     -- AD7923 RANGE biti
+    coding_sel : in  std_logic;                     -- AD7923 CODING biti
+    data_valid : out std_logic;                     -- 1 clk: data geçerli
+    data_ch    : out std_logic_vector(1 downto 0);  -- verinin kanalı
+    data       : out std_logic_vector(11 downto 0);  -- 12 bit sonuç
+    busy       : out std_logic;                     -- driver meşgul
+    err        : out std_logic;                     -- sticky hata
     -- kanal başına sonuçlar (ad7923_ch_regs)
     ch0_data   : out std_logic_vector(11 downto 0);
     ch1_data   : out std_logic_vector(11 downto 0);
@@ -63,17 +88,17 @@ entity ad7923_top is
     ch1_valid  : out std_logic;
     ch2_valid  : out std_logic;
     ch3_valid  : out std_logic;
-    scan_done  : out std_logic;
-    spi_sclk   : out std_logic;
-    spi_mosi   : out std_logic;
-    spi_cs_n   : out std_logic;
-    spi_miso   : in  std_logic
+    scan_done  : out std_logic;                     -- tarama tamamlandı (1 clk)
+    spi_sclk   : out std_logic;                     -- AD7923 SCLK (Mode 2: boşta '1')
+    spi_mosi   : out std_logic;                     -- AD7923 DIN
+    spi_cs_n   : out std_logic;                     -- AD7923 CS (aktif '0')
+    spi_miso   : in  std_logic                      -- AD7923 DOUT
   );
 end entity ad7923_top;
 
 architecture rtl of ad7923_top is
 
-  -- ADI çekirdek parametreleri (proje kuralı 5)
+  -- ADI çekirdek parametreleri (proje kuralı 5): tek CS, 16 bit, Mode 2, tek MISO
   constant C_NUM_OF_CS       : integer := 1;
   constant C_DATA_WIDTH      : integer := 16;
   constant C_DEFAULT_SPI_CFG : integer := 2;          -- Mode 2: CPOL=1, CPHA=0
@@ -84,6 +109,7 @@ architecture rtl of ad7923_top is
   -- tanımlanmaz ve map edilmez (çekirdek default 0 ile elaborate edilir).
   constant C_SDI_DELAY       : std_logic_vector(1 downto 0) := "00";
 
+  -- SPI core (rtl/async/spi_exec.vhd); generic / port listesi orijinal component ile aynı
   component spi_exec is
     generic (
       NUM_OF_CS       : integer := 1;
@@ -119,23 +145,23 @@ architecture rtl of ad7923_top is
     );
   end component;
 
-  signal core_resetn : std_logic;
-  signal core_rst    : std_logic;
-  signal req         : std_logic;
-  signal gnt         : std_logic;
-  signal cmd         : std_logic_vector(15 downto 0);
+  signal core_resetn : std_logic;                     -- core async reset'i (p_core_resetn flop'u)
+  signal core_rst    : std_logic;                     -- driver: core reset isteği (senkron)
+  signal req         : std_logic;                     -- driver isteği (arbiter yok, kullanılmaz)
+  signal gnt         : std_logic;                     -- arbiter izni (sabit '1')
+  signal cmd         : std_logic_vector(15 downto 0);  -- komut stream'i: driver -> core
   signal cmd_valid   : std_logic;
   signal cmd_ready   : std_logic;
-  signal sdo_data    : std_logic_vector(15 downto 0);
+  signal sdo_data    : std_logic_vector(15 downto 0);  -- MOSI kelime stream'i: driver -> core
   signal sdo_valid   : std_logic;
   signal sdo_ready   : std_logic;
-  signal sdi_data    : std_logic_vector(15 downto 0);
+  signal sdi_data    : std_logic_vector(15 downto 0);  -- MISO kelime stream'i: core -> driver
   signal sdi_valid   : std_logic;
-  signal sync        : std_logic_vector(7 downto 0);
+  signal sync        : std_logic_vector(7 downto 0);  -- SYNC id: core -> driver
   signal sync_valid  : std_logic;
-  signal miso_v      : std_logic_vector(C_NUM_OF_SDI - 1 downto 0);
-  signal cs_v        : std_logic_vector(C_NUM_OF_CS - 1 downto 0);
-  signal data_valid_i : std_logic;
+  signal miso_v      : std_logic_vector(C_NUM_OF_SDI - 1 downto 0);  -- core sdi vektörü
+  signal cs_v        : std_logic_vector(C_NUM_OF_CS - 1 downto 0);  -- core cs vektörü
+  signal data_valid_i : std_logic;                    -- driver sonuç akışı (iç)
   signal data_ch_i    : std_logic_vector(1 downto 0);
   signal data_i       : std_logic_vector(11 downto 0);
   signal data_last_i  : std_logic;
@@ -146,6 +172,9 @@ begin
   -- Core reset'i: spi_exec async reset kullandığı için reset hattı bir flop'tan gelmeli
   -- (kombinasyonel AND'deki glitch, async reset'te istenmeyen bir reset pulse'ı olabilir).
   -- rst_n düşünce anında (async) reset'e girer; core_rst ise bir clock gecikmeli, senkron.
+  --   rst_n = '0'              -> core_resetn = '0' (hemen)
+  --   rst_n = '1', core_rst=1  -> sonraki kenarda core_resetn = '0'
+  --   rst_n = '1', core_rst=0  -> sonraki kenarda core_resetn = '1'
   p_core_resetn : process(clk, rst_n)
   begin
     if rst_n = '0' then
@@ -154,12 +183,14 @@ begin
       core_resetn <= not core_rst;
     end if;
   end process;
+  -- pin bağlantıları ve driver sonuç çıkışları
   miso_v(0)   <= spi_miso;
   spi_cs_n    <= cs_v(0);
   data_valid  <= data_valid_i;
   data_ch     <= data_ch_i;
   data        <= data_i;
 
+  -- Driver: AD7923 protokolü, tarama kontrolü, sonuç kontrolü
   u_drv : entity work.ad7923_drv
     generic map (
       CLK_DIV  => CLK_DIV,
@@ -198,6 +229,7 @@ begin
       core_rst   => core_rst
     );
 
+  -- Kanal başına sonuç register'ları ve scan_done
   u_regs : entity work.ad7923_ch_regs
     port map (
       clk        => clk,
@@ -217,6 +249,8 @@ begin
       scan_done  => scan_done
     );
 
+  -- SPI master (spi_exec): komut stream'ini SPI dalga şekline çevirir.
+  -- Kullanılmayan çıkışlar: sdo_t (MOSI hep sürülür), three_wire.
   u_spi : spi_exec
     generic map (
       NUM_OF_CS       => C_NUM_OF_CS,

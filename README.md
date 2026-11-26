@@ -18,7 +18,8 @@ Orijinal dosyalar `vendor/adi/` altında, değiştirilmeden duruyor:
 | `rtl/drv_sync_ref/` | Async geçişinden önceki sync reset driver'ın kopyası, entity adları `_sref`. Yalnız lockstep referansı; ürün akışına girmez |
 | `vendor/adi/` | Orijinal ADI Verilog (read-only, referans) |
 | `tb/` | `tb_lockstep.v` (orijinal ↔ VHDL core), `tb_ad7923_drv.v` (driver testleri T01–T22), `tb_drv_lockstep.v` (sync ↔ async driver), AD7923 modeli |
-| `sim/` | Çalıştırma script'leri, Questa `.do`, `check_flops.py`, sonuç dosyaları, `hash/` (SHA-256 listeleri) |
+| `sim/` | Çalıştırma script'leri, Questa `.do`, `check_flops.py`, `check_comment_only.py`, sonuç dosyaları, `hash/` (SHA-256 listeleri) |
+| `docs/` | `ad7923_spi_blok_diyagram.drawio` (blok diyagram, 5 sayfa) ve onu üreten `gen_drawio.py` |
 
 ## Nasıl yapıldı
 
@@ -122,6 +123,28 @@ tekrarlanır.
   doğrudan ~rst_n. Core'da ~core_resetn (p_core_resetn flop'u, onaylı yol). Düz `posedge clk`
   flop 0.
 
+## Kod yorumları ve blok diyagram
+
+`rtl/drv` (3 dosya) ve `rtl/async` (2 dosya), Türkçe açıklama yorumlarıyla zenginleştirildi
+(teknik terimler İngilizce). Eklenenler: genel akış ve blok yapısı, AD7923 kanal pipeline'ı,
+komut formatı, SPI zamanlaması, FSM durumları, process ve sinyal açıklamaları.
+**Kod değişmedi.** Bunu iki kontrol gösteriyor (`sim/run_comment_check.sh REV`):
+- yorumlar atılınca token dizisi ve kod satırları önceki sürümle birebir aynı,
+- ad7923_top'un GHDL netlist'i, kaynak satır yorumları hariç birebir aynı.
+
+Testlerin hepsi yeniden koşuldu ve sonuçlar aynı çıktı (`sim/SONUCLAR.txt` bölüm 10).
+rtl/async'e yalnız yorum eklendiği için SHA-256'sı değişti; güncel liste
+`sim/hash/sha256_yorum.txt` dosyasında. vendor/adi ve rtl/p1 değişmedi.
+
+Blok diyagram: `docs/ad7923_spi_blok_diyagram.drawio` (draw.io / diagrams.net ile açılır).
+1. ad7923_top: bağlantılar, reset yolu, AD7923 pin'leri
+2. ad7923_drv iç blokları
+3. Control FSM ve packer FSM
+4. spi_exec control path
+5. spi_exec_shiftreg data path
+
+Diyagram `python3 docs/gen_drawio.py` ile yeniden üretilir.
+
 ## Orijinalden farklar (bilinçli, yalnız reset ile ilgili)
 
 | ID | Fark | Neden |
@@ -156,10 +179,12 @@ RST_MODE=1 ./run_matrix.sh 500000 "11 12"     # kısa async reset modu
 ./run_drv_lockstep.sh 3 2000000
 ./run_drv_mutation.sh 400000 1                # driver lockstep mutation (4 hata, hepsi YAKALANDI olmalı)
 ./run_flop_check.sh                           # netlist yapısal kontrolü (düz posedge clk flop = 0)
+./run_comment_check.sh c5e0676               # yalnız yorum değişti mi (token + netlist)
 vsim -c -do run_questa_ad7923_drv_vhdl.do     # Questa (resmi koşu; batch'te driver lockstep da)
 ```
 SHA-256 kontrolü (repo kökünden):
-`find vendor/adi rtl/async rtl/p1 -type f | sort | xargs sha256sum | diff - sim/hash/sha256_son.txt`
+`find vendor/adi rtl/async rtl/p1 -type f | sort | xargs sha256sum | diff - sim/hash/sha256_yorum.txt`
+(`sha256_bas.txt` / `sha256_son.txt`: async reset geçişinin başı ve sonu; `sha256_yorum.txt`: yorum eklemesinden sonra)
 Gerekenler: GHDL (--synth destekli, ≥ 4.x), Icarus Verilog ≥ 12, Python 3.
 
 ## Açık işler
