@@ -1,0 +1,41 @@
+CS_T=0 SO_DLY=15.0
+  CS low 1480.0 ns | SCK=24 | tCES=60.0 tCHH=40.0 tCEH=10.0
+  kind=1 launch->SYNC 1550.0 ns, okunan=00000000 (kelime 0)
+  CS low 1000.0 ns | SCK=16 | tCES=60.0 tCHH=40.0 tCEH=10.0
+  kind=2 launch->SYNC 1070.0 ns, okunan=00000000 (kelime 0)
+  CS low 1020.0 ns | SCK=16 | tCES=60.0 tCHH=40.0 tCEH=10.0
+  kind=3 launch->SYNC 1090.0 ns, okunan=0000005a (kelime 1)
+  CS low 1500.0 ns | SCK=24 | tCES=60.0 tCHH=40.0 tCEH=10.0
+  kind=4 launch->SYNC 1570.0 ns, okunan=00005a3c (kelime 2)
+  CS low 2460.0 ns | SCK=40 | tCES=60.0 tCHH=40.0 tCEH=10.0
+  kind=0 launch->SYNC 2530.0 ns, okunan=a5c30f96 (kelime 4)
+  CS low 2460.0 ns | SCK=40 | tCES=60.0 tCHH=40.0 tCEH=10.0
+  kind=0 launch->SYNC 2530.0 ns, okunan=a5c30f96 (kelime 4)
+  SCK high min 30.0 low min 30.0 | tCPH min (ardışık paket) 70.0 | MOSI tDS min 30.0 tDH min 30.0
+RESULT OK
+CS_T=1 SO_DLY=15.0
+  CS low 1600.0 ns | SCK=24 | tCES=120.0 tCHH=100.0 tCEH=70.0
+  kind=1 launch->SYNC 1790.0 ns, okunan=00000000 (kelime 0)
+  CS low 1120.0 ns | SCK=16 | tCES=120.0 tCHH=100.0 tCEH=70.0
+  kind=2 launch->SYNC 1310.0 ns, okunan=00000000 (kelime 0)
+  CS low 1140.0 ns | SCK=16 | tCES=120.0 tCHH=100.0 tCEH=70.0
+  kind=3 launch->SYNC 1330.0 ns, okunan=0000005a (kelime 1)
+  CS low 1620.0 ns | SCK=24 | tCES=120.0 tCHH=100.0 tCEH=70.0
+  kind=4 launch->SYNC 1810.0 ns, okunan=00005a3c (kelime 2)
+  CS low 2580.0 ns | SCK=40 | tCES=120.0 tCHH=100.0 tCEH=70.0
+  kind=0 launch->SYNC 2770.0 ns, okunan=a5c30f96 (kelime 4)
+  CS low 2580.0 ns | SCK=40 | tCES=120.0 tCHH=100.0 tCEH=70.0
+  kind=0 launch->SYNC 2770.0 ns, okunan=a5c30f96 (kelime 4)
+  SCK high min 30.0 low min 30.0 | tCPH min (ardışık paket) 190.0 | MOSI tDS min 30.0 tDH min 30.0
+RESULT OK
+MISO penceresi (CS_T=1): SO_DLY = SCK düşen kenarı -> SO değişimi
+  SO_DLY=0 ns -> RESULT OK
+  SO_DLY=10 ns -> RESULT OK
+  SO_DLY=20 ns -> RESULT OK
+  SO_DLY=30 ns -> RESULT OK
+  SO_DLY=35 ns -> RESULT OK
+  SO_DLY=39 ns -> RESULT OK
+  SO_DLY=40 ns -> RESULT FAIL
+  SO_DLY=45 ns -> RESULT FAIL
+  SO_DLY=50 ns -> RESULT FAIL
+  SO_DLY=60 ns -> RESULT FAIL
