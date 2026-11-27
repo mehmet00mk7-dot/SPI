@@ -58,7 +58,7 @@ Sunum notları: `docs/KONUSMA_NOTLARI.md`.
 | CLKS_PER_US | 100 | 100 MHz |
 | CLK_DIV | 2 | SCLK 16,67 MHz (≤ 20 MHz, s.19 tCYC ≥ 50 ns) |
 | CS_T | 1 | tCEH / tCPH marjı |
-| DATA_WIDTH | 8 | core kelime genişliği 8..32 (paylaşılan core 16/32 test edildi) |
+| DATA_WIDTH | 8 | core kelime genişliği 8..32 (16/32 köşeleri de test edildi) |
 | SDI_DELAY | 0 | MISO örnekleme ek gecikmesi |
 | HAS_MR | true | nMR bağlı değilse false |
 | MR_CLKS / MR_WAIT_CLKS | 20 / 100 | nMR 200 ns (≥ 100), sonrası 1 µs bekleme |
@@ -223,7 +223,7 @@ tam init yapar. Sense okumasında veri kontrolü yoktur: 32 bitin hepsi veridir.
 cd HI8436/sim
 ./run_hi8436_drv_vhdl.sh 5.0                  # hızlı köşe (T_SO = 5 ns)
 ./run_hi8436_drv_vhdl.sh 35.0                 # yavaş köşe
-./run_hi8436_drv_vhdl.sh 35.0 16              # paylaşılan core, DATA_WIDTH 16
+./run_hi8436_drv_vhdl.sh 35.0 16              # core genişliği köşesi, DATA_WIDTH 16
 ./run_hi8436_drv_vhdl.sh 35.0 8 ../rtl 0 0    # HAS_MR = false
 ./run_hi8436_drv_vhdl.sh 35.0 8 ../rtl 0 1 1  # INIT_EVERY_START = true
 ./run_hi8436_drv_vhdl.sh 45.0                 # negatif köşe (başarısız olmalı)
@@ -235,6 +235,13 @@ python3 -I ../docs/gen_drawio.py              # blok diyagramı yeniden üret
 ```
 Gerekenler: GHDL ≥ 4 (`--synth`), Icarus Verilog ≥ 12, Python 3.
 
+## Sistem bağlantısı
+Kartta üç ayrı SPI hattı var ve her hatta tek entegre bulunuyor: hat A = AD7923, hat B = HI-8436 #1,
+hat C = HI-8436 #2 (ANALIZ.md K-5, E.7). `hi8436_top` tek entegre ve tek hat içindir (driver + kendi
+`spi_exec`'i); iki HI-8436 için sistem seviyesinde iki instance kullanılır. Arbiter yok, top'ta
+`gnt = '1'`. Driver'ın req/gnt arayüzü, ileride paylaşılan bir hat olursa arbiter bağlamak için korunuyor.
+Blok diyagramın 1. sayfası (sistem zinciri) bu bağlantıyı gösterir.
+
 ## Açık işler
 | # | Konu | Durum |
 |---|---|---|
@@ -245,5 +252,4 @@ Gerekenler: GHDL ≥ 4 (`--synth`), Icarus Verilog ≥ 12, Python 3.
 | – | Questa koşusu | `.do` hazır, bu ortamda Questa yok, koşulmadı |
 | – | Libero / Synplify sentezi, kaynak raporu, reset ağacı ve recovery/removal timing'i | yapılmadı |
 | – | Kart testi: gerçek HI-8436 ile init, okuma, polarite, eşik, self-test, MISO zamanlaması | yapılmadı |
-| – | Arbiter (iki HI-8436 ve AD7923 paylaşılan hatta) | driver req/gnt hazır; arbiter yazılmadı |
 | DS-1, 2, 3, 5–9 | Faz 1'de kabul edilen varsayımlar | `docs/ANALIZ.md` G |

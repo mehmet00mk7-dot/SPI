@@ -27,10 +27,10 @@ flop yok. Henüz yapılmayanlar: Questa koşusu, Libero sentezi ve gerçek kartt
 ### 2. Core ile eşleme (sayfa 2, 5)
 - Her byte bir core kelimesi (word_length 8). Opcode bir TRANSFER, veri ayrı bir TRANSFER; CS arada
   aktif kalıyor.
-- Sonuç: driver core'un DATA_WIDTH'inden bağımsız. Paylaşılan core 16 bit (AD7923) olsa da çalışır;
+- Sonuç: driver core'un DATA_WIDTH'inden bağımsız. Core 16 veya 32 bit seçilse de çalışır;
   8/16/32 test edildi.
-- Paket: `2002 2100 2208 11FE` + TRANSFER(ler) + `11FF 30nn`. CONFIG her pakette yeniden yazılıyor,
-  hat paylaşılsa bile güvenli.
+- Paket: `2002 2100 2208 11FE` + TRANSFER(ler) + `11FF 30nn`. CONFIG her pakette yeniden yazılıyor
+  (core_rst sonrasında da config doğru kalır).
 
 ### 3. Driver iç yapısı (sayfa 3, 4)
 - **Kontrol FSM'i** neyin yapılacağına karar verir. **Paket tanımı** opcode ve veriyi seçer.
@@ -126,8 +126,9 @@ FPGA I/O için 20 ns kalıyor. 5 ve 35 ns köşelerinde test edildi; 45 ns'de bi
 gösterdik. Kart gecikmesi büyükse SDI_DELAY generic'i var.
 
 **S: İki HI-8436 nasıl bağlanacak?**
-C: Top tek entegre için. Sistemde iki instance olacak. Driver'da arbiter için req/gnt hazır, ama
-arbiter henüz yazılmadı.
+C: Her HI-8436 ayrı SPI hattında ve hattındaki tek entegre; AD7923 de kendi hattında. Top tek
+entegre, tek hat için: sistemde iki hi8436_top instance'ı olacak, her biri kendi spi_exec'iyle.
+Arbiter gerekmiyor (gnt = '1'). Driver'daki req/gnt, ileride paylaşılan bir hat olursa diye korunuyor.
 
 **S: Self-test ne kontrol ediyor?**
 C: Comparator girişleri test desenine zorlanıyor: ALL1 → 0x00000000, ALL0 → 0xFFFFFFFF. Bu,
@@ -157,7 +158,7 @@ okumayla sınırlı.
 | "Sentezlenebilir, kaynak kullanımı X" | "GHDL sentezinde temiz, flop yapısı kontrol edildi; Libero raporu yok" |
 | "Gerçek entegrede çalışıyor" | "Datasheet'e göre yazdığımız modelde çalışıyor; kart testi bekliyor" |
 | "Sense verisi hatalara karşı korumalı" | "Sense verisinde kontrol yok; geri okuma, periyodik doğrulama ve self-test var" |
-| "İki entegreyi ve AD7923'ü aynı hatta sürüyor" | "req/gnt arayüzü hazır; arbiter henüz yazılmadı, top'ta gnt = '1'" |
+| "İki entegreyi ve AD7923'ü aynı hatta sürüyor" | "Her entegre ayrı hatta, kendi spi_exec'iyle; arbiter gerekmiyor (gnt = '1')" |
 | "Self-test girişleri test ediyor" | "Self-test comparator, latch ve okuma yolunu test ediyor; pinleri değil" |
 | "nMR latch'i sıfırlıyor" | "Belirsiz (DS-10); model öyle varsayıyor, kartta doğrulanacak" |
 | "Debounce var" | "Debounce yok (K-12); datasheet'te de filtre yok, gerekirse sistem tarafında" |
