@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Driver lockstep mutation sanity check: async driver'a (rtl/drv kopyası) bilerek küçük
-# hatalar konur; tb_drv_lockstep her birini yakalamalı. rtl/drv'ye dokunulmaz (kopya
+# Driver lockstep mutation sanity check: async driver'a (rtl kopyası) bilerek küçük
+# hatalar konur; tb_drv_lockstep her birini yakalamalı. rtl/'ye dokunulmaz (kopya
 # üzerinde çalışılır, koşu sonunda kopya silinir = hata geri alınmış olur).
 #   ./run_drv_mutation.sh [CYCLES] [SEED]
 set -e
@@ -29,7 +29,7 @@ muts={
 }
 for name,(f,a,b) in muts.items():
     root='build/dmut/'+name
-    shutil.copytree('../rtl/drv',root)
+    shutil.copytree('../rtl',root)
     p=f'{root}/{f}'; s=open(p,encoding='utf-8').read(); assert s.count(a)==1, name
     open(p,'w',encoding='utf-8').write(s.replace(a,b))
 PY
@@ -44,4 +44,4 @@ for m in $(ls -d build/dmut/*/ | xargs -n1 basename); do
   awk '/FARK: clock|ASYNC RESET HATASI/{n++} n==1' build/dmut/$m.log | grep -v "alan " | sed 's/^ */      /'
 done
 rm -rf build/dmut
-sha256sum ../rtl/drv/*.vhd
+sha256sum ../rtl/*.vhd

@@ -10,7 +10,7 @@ B=build/drv_vhdl
 CORE=../../common/rtl/async
 rm -rf $B; mkdir -p $B
 ghdl -a --std=08 --workdir=$B $CORE/spi_exec_shiftreg.vhd $CORE/spi_exec.vhd \
-  ../rtl/drv/ad7923_drv.vhd ../rtl/drv/ad7923_ch_regs.vhd ../rtl/drv/ad7923_top.vhd
+  ../rtl/ad7923_drv.vhd ../rtl/ad7923_ch_regs.vhd ../rtl/ad7923_top.vhd
 ghdl --synth --std=08 --workdir=$B --out=verilog ad7923_top > $B/ad7923_top_net.v
 iverilog -g2012 -o $B/ad7923_drv.vvp -s tb_ad7923_drv -Ptb_ad7923_drv.T_DOUT=$TDOUT \
   ../tb/tb_ad7923_drv.v $B/ad7923_top_net.v ../tb/ad7923_model.v

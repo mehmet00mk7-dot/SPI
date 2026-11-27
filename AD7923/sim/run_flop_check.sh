@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Yapısal kontrol (D): ad7923_top'u ghdl --synth ile netlist'e çevirir, bütün flop'ların
 # "posedge clk or posedge <rst_n'den türeyen>" biçiminde olduğunu kontrol eder.
-#   ./run_flop_check.sh [DRV_DIR]      (varsayılan ../rtl/drv)
+#   ./run_flop_check.sh [DRV_DIR]      (varsayılan ../rtl)
 set -e
 cd "$(dirname "$0")"
-DRV=${1:-../rtl/drv}
+DRV=${1:-../rtl}
 # Ortak SPI master core (spi_exec, async reset): repo kökünde common/rtl/async
 CORE=../../common/rtl/async
 B=build/flopchk_$$; mkdir -p $B

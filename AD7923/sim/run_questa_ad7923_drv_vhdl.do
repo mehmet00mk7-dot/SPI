@@ -5,7 +5,7 @@
 # Driver (ad7923_drv, ad7923_ch_regs, ad7923_top) async reset'tir.
 #   1) tb_ad7923_drv   : T01-T19 (mevcut) + T20-T22 (async reset: frame ortası, clock
 #                        dururken, 1 clock'luk reset) -> 22 test
-#   2) tb_drv_lockstep : eski sync driver (rtl/drv_sync_ref, *_sref) <-> yeni async driver,
+#   2) tb_drv_lockstep : eski sync driver (tb/sync_ref, *_sref) <-> yeni async driver,
 #                        her clock bütün çıkışlar. Yalnız batch modda ve RUN_LOCKSTEP = 1 ise.
 #                        LS_SEEDS / LS_CYCLES ile ayarlanır.
 #
@@ -34,14 +34,14 @@ vcom -2008 -work work $CORE/spi_exec_shiftreg.vhd
 vcom -2008 -work work $CORE/spi_exec.vhd
 
 # 2) Driver ve top (VHDL-2008)
-vcom -2008 -work work $RTL/drv/ad7923_drv.vhd
-vcom -2008 -work work $RTL/drv/ad7923_ch_regs.vhd
-vcom -2008 -work work $RTL/drv/ad7923_top.vhd
+vcom -2008 -work work $RTL/ad7923_drv.vhd
+vcom -2008 -work work $RTL/ad7923_ch_regs.vhd
+vcom -2008 -work work $RTL/ad7923_top.vhd
 
 # 2b) Referans: async geçişinden önceki sync reset driver (yalnız lockstep için)
-vcom -2008 -work work $RTL/drv_sync_ref/ad7923_drv_sref.vhd
-vcom -2008 -work work $RTL/drv_sync_ref/ad7923_ch_regs_sref.vhd
-vcom -2008 -work work $RTL/drv_sync_ref/ad7923_top_sref.vhd
+vcom -2008 -work work $TB/sync_ref/ad7923_drv_sref.vhd
+vcom -2008 -work work $TB/sync_ref/ad7923_ch_regs_sref.vhd
+vcom -2008 -work work $TB/sync_ref/ad7923_top_sref.vhd
 
 # 3) AD7923 modeli ve testbench'ler (Verilog / SystemVerilog sözdizimi)
 vlog -sv -work work +define+QUESTA $TB/ad7923_model.v $TB/tb_ad7923_drv.v $TB/tb_drv_lockstep.v

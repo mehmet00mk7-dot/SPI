@@ -484,3 +484,25 @@ f18ed3e82b865d2ab0b4a897d0a0d03584cf5bad0c0ee0422f0dd81d0c83ac86  spi_engine_exe
      core lockstep (common/sim/run_lockstep.sh 16 1 1 0 2 2 1 1 200000):
   cycles=200000 karsilastirilan=199788 reset=12 | FARK P1=0 AS=0 | ref X=0 | RST_MODE=0 guvenli-cikis kontrol=0 hata=0  SONUC: BASARILI
   Log'lar: sim/log/repo_duzeni/, common/sim/log/
+
+== 13) Repo duzeni: AD7923 klasoru guncel sablona getirildi (branch drv/ad7923)
+  Tasinan (git mv, icerik ayni; 9 dosyanin SHA-256'si once/sonra ayni):
+    rtl/drv/ad7923_drv.vhd, ad7923_ch_regs.vhd, ad7923_top.vhd -> rtl/   (HI8436 ile ayni duzen)
+    rtl/drv_sync_ref/                                         -> tb/sync_ref/   (yalniz dogrulama referansi)
+    sim/hash/                                                 -> sim/log/hash_gecmis/   (gecmis kaydi)
+  Guncellenen: run_ad7923_drv_vhdl.sh, run_flop_check.sh, run_drv_lockstep.sh, run_drv_mutation.sh,
+    run_comment_check.sh (eski revizyonlarda rtl/drv/ ve rtl/async/ konumlari da denenir),
+    run_questa_ad7923_drv_vhdl.do; tb_drv_lockstep.v ve ad7923_top.vhd'de yalniz yol yorumu.
+  RTL kod degismedi: run_comment_check.sh a245f60 (main) ve c5e0676 -> YALNIZ YORUM DEGISTI,
+    NETLIST (ad7923_top) AYNI 596ae01e84143456.
+  Dokumanlar: README.md yeniden yazildi (driver odakli); core cevirisi / dogrulamasi / orijinalden
+    farklar common/README.md'ye tasindi. docs/KONUSMA_NOTLARI.md eklendi. Blok diyagram proje renk
+    duzenine (turuncu = bizim, teal = core, gri = dis dunya) gecirildi, yeniden uretildi.
+  Testler (oncesi main a245f60 / sonrasi drv/ad7923; log'lar yol adlari disinda birebir ayni):
+  T_DOUT=25.0: TOPLAM: 22 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+  T_DOUT=40.0: TOPLAM: 22 test gecti, 0 kaldi | timing ihlali=0  ->  SONUC: BASARILI
+     flop kontrol: 89 grup / 391 bit, YAPISAL KONTROL: BASARILI
+     driver lockstep 3 seed x 2.000.000 clock: FARK=0 (x3)
+     driver mutation 400000 1: 4/4 YAKALANDI
+     core lockstep (16 1 1 0 2 2 1 1 200000): SONUC: BASARILI; core SHA: SONUC: BASARILI
+  Acik is: AD7923 datasheet PDF'i (docs/datasheet/) repo'da yok.
