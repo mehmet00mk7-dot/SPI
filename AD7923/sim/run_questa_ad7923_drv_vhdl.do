@@ -9,8 +9,16 @@
 #                        her clock bütün çıkışlar. Yalnız batch modda ve RUN_LOCKSTEP = 1 ise.
 #                        LS_SEEDS / LS_CYCLES ile ayarlanır.
 #
-# Komut satırı:  cd sim ; vsim -c -do run_questa_ad7923_drv_vhdl.do
-# GUI:           cd sim ; vsim -do run_questa_ad7923_drv_vhdl.do
+# Çalıştırma (çalışma dizini mutlaka AD7923/sim olmalı; script ../rtl ve ../tb kullanır):
+#   ModelSim / Questa Transcript penceresinden (program açıkken):
+#       cd <yol>/SPI/AD7923/sim
+#       do run_questa_ad7923_drv_vhdl.do
+#     DİKKAT: Transcript'te "vsim -do ..." YAZMAYIN. Program içinde vsim "tasarım yükle"
+#     demektir; tasarım adı verilmeyince "No design specified" hatası verir.
+#   İşletim sistemi terminalinden (cmd / PowerShell / bash, program kapalıyken):
+#       cd <yol>/SPI/AD7923/sim
+#       vsim -c -do run_questa_ad7923_drv_vhdl.do      (GUI'siz, lockstep dahil)
+#       vsim -do run_questa_ad7923_drv_vhdl.do         (GUI, yalnız tb_ad7923_drv)
 # DOUT gecikmesi köşeleri: aşağıdaki T_DOUT değerini 12.0 / 25.0 / 40.0 yapın.
 #
 # Not: testbench +define+QUESTA ile derlenir; iç sinyallere SignalSpy
