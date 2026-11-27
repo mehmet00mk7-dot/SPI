@@ -3,7 +3,7 @@
 #   GHDL ile analiz, ghdl --synth ile Verilog netlist, Icarus ile simülasyon.
 #   ./run_hi8436_drv_vhdl.sh [T_SO] [DATA_WIDTH] [RTL_DIR] [UNUSED_STORE] [HAS_MR] [INIT_EVERY_START]
 #     T_SO        : model SCK düşen -> SO gecikmesi, ns (timing köşesi; varsayılan 15.0)
-#     DATA_WIDTH  : core kelime genişliği (varsayılan 8; paylaşılan core köşesi 16/32)
+#     DATA_WIDTH  : core kelime genişliği (varsayılan 8; core genişliği köşesi 16/32)
 #     RTL_DIR     : driver/top kaynak klasörü (mutation / negatif kontrol için; varsayılan ../rtl)
 #     UNUSED_STORE: model kullanılmayan register bitlerini saklar mı (0/1, DS-3)
 #     HAS_MR      : DUT HAS_MR generic'i (1 = true, 0 = false; varsayılan 1)

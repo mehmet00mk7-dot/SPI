@@ -3,7 +3,7 @@
 # gen_drawio.py  -  HI-8436 driver blok diyagramı üretici
 #
 # Çıktı: docs/hi8436_blok_diyagram.drawio (draw.io / diagrams.net, 6 sayfa)
-#   1  Sistem zinciri  : UART Master -> ... -> Driver -> Arbiter -> SPI Master -> entegre
+#   1  Sistem zinciri  : UART Master -> ... -> Driver -> SPI Master -> entegre (her entegre ayrı hatta)
 #   2  hi8436_top      : üst seviye bağlantılar, reset yolu, HI-8436 pin'leri
 #   3  hi8436_drv      : driver iç blokları ve aralarındaki sinyaller
 #   4  FSM             : control FSM (p_ctrl) ve packer FSM (p_pack)
@@ -28,7 +28,6 @@ _BOX = 'whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=4;fontS
 _MID = 'whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=11;'
 S_OURS = 'rounded=1;arcSize=6;fillColor=#ffe6cc;strokeColor=#d79b00;' + _BOX
 S_HI = 'rounded=1;arcSize=6;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=3;' + _BOX
-S_PLAN = 'rounded=1;arcSize=6;fillColor=#ffe6cc;strokeColor=#d79b00;dashed=1;' + _BOX
 S_CORE = 'rounded=0;fillColor=#b0e3e6;strokeColor=#0e8088;' + _BOX
 S_EXT = 'rounded=0;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;' + _BOX
 S_EXT_HI = 'rounded=0;fillColor=#f5f5f5;strokeColor=#d79b00;strokeWidth=3;fontColor=#333333;' + _BOX
@@ -153,35 +152,35 @@ uart = p.box(lab('UART Master'), 30, 150, 150, 90, S_EXT)
 ic1 = p.box(lab('Interconnect 1'), 220, 150, 150, 90, S_EXT)
 seq = p.box(lab('Sequencer', 'start / stop / ayarlar', 'sonuçları toplar'), 410, 150, 150, 90, S_EXT)
 ic2 = p.box(lab('Interconnect 2'), 600, 150, 150, 90, S_EXT)
-p.box('<b>Bu repo: Driver -&gt; Arbiter -&gt; SPI Master</b>', 790, 90, 870, 400, S_GRP)
-dad = p.box(lab('ad7923_drv', '(önceki iş, AD7923/)'), 820, 130, 240, 70, S_OURS)
-dh1 = p.box(lab('hi8436_drv  #1', 'HI8436/rtl (bu iş)', 'init / doğrulama / F8 okuma / self-test'), 820, 230, 240, 90, S_HI)
-dh2 = p.box(lab('hi8436_drv  #2', 'aynı RTL, ikinci instance', '(kartta iki HI-8436)'), 820, 350, 240, 90, S_HI)
-arb = p.box(lab('Arbiter (planlı)', 'req / gnt, paket bitene', '(SYNC) kadar gnt tutulur', '',
-                'bugün: her top\'ta', 'gnt = \'1\''), 1140, 200, 190, 180, S_PLAN)
-spi = p.box(lab('SPI Master', 'spi_exec', '(common/rtl/async)', 'ADI spi_engine_execution', 'VHDL çevirisi'),
-            1420, 200, 200, 180, S_CORE)
-cad = p.box(lab('AD7923', '4 kanal ADC'), 1110, 600, 160, 90, S_EXT)
-ch1 = p.box(lab('HI-8436 #1', '32 discrete giriş'), 1300, 600, 160, 90, S_EXT_HI)
-ch2 = p.box(lab('HI-8436 #2', '32 discrete giriş'), 1490, 600, 160, 90, S_EXT_HI)
+p.box('<b>Bu repo: Driver -&gt; SPI Master</b>  (her entegre kendi SPI hattında, arbiter yok)',
+      790, 90, 640, 470, S_GRP)
+dad = p.box(lab('ad7923_drv', '(önceki iş, AD7923/)'), 820, 130, 240, 90, S_OURS)
+dh1 = p.box(lab('hi8436_drv  #1', 'HI8436/rtl (bu iş)', 'init / doğrulama / F8 okuma / self-test'), 820, 260, 240, 90, S_HI)
+dh2 = p.box(lab('hi8436_drv  #2', 'aynı RTL, ikinci instance', '(kartta iki HI-8436)'), 820, 390, 240, 90, S_HI)
+sad = p.box(lab('spi_exec  (hat A)', 'common/rtl/async', 'ad7923_top: DATA_WIDTH = 16'), 1180, 130, 220, 90, S_CORE)
+sh1 = p.box(lab('spi_exec  (hat B)', 'common/rtl/async', 'hi8436_top: DATA_WIDTH = 8'), 1180, 260, 220, 90, S_CORE)
+sh2 = p.box(lab('spi_exec  (hat C)', 'common/rtl/async', 'hi8436_top: DATA_WIDTH = 8'), 1180, 390, 220, 90, S_CORE)
+cad = p.box(lab('AD7923', '4 kanal ADC', 'hat A\'daki tek entegre'), 1500, 130, 170, 90, S_EXT)
+ch1 = p.box(lab('HI-8436 #1', '32 discrete giriş', 'hat B\'deki tek entegre'), 1500, 260, 170, 90, S_EXT_HI)
+ch2 = p.box(lab('HI-8436 #2', '32 discrete giriş', 'hat C\'deki tek entegre'), 1500, 390, 170, 90, S_EXT_HI)
 p.path(uart, ic1, [(180, 195), (220, 195)])
 p.path(ic1, seq, [(370, 195), (410, 195)])
 p.path(seq, ic2, [(560, 195), (600, 195)])
-p.path(ic2, dad, [(750, 165), (820, 165)])
-p.path(ic2, dh1, [(750, 210), (780, 210), (780, 275), (820, 275)])
-p.text('start, stop, ayarlar -&gt;<br>&lt;- sense, valid, err', 640, 405, 170, 34, S_TEXTC)
-p.path(ic2, dh2, [(675, 240), (675, 395), (820, 395)])
-p.path(dad, arb, [(1060, 165), (1235, 165), (1235, 200)], 'req/gnt + cmd/sdo/sdi/sync', lpos=-0.3)
-p.path(dh1, arb, [(1060, 275), (1140, 275)])
-p.path(dh2, arb, [(1060, 395), (1100, 395), (1100, 340), (1140, 340)])
-p.path(arb, spi, [(1330, 290), (1420, 290)], 'tek paket\nakışı')
-p.path(spi, cad, [(1450, 380), (1450, 540), (1190, 540), (1190, 600)], 'SCK / MOSI / MISO\nnCS (CS_IDX)', lpos=0.2)
-p.path(spi, ch1, [(1520, 380), (1520, 560), (1380, 560), (1380, 600)])
-p.path(spi, ch2, [(1590, 380), (1590, 600)])
-p.box('<b>Bu çalışmanın kapsamı</b><br>hi8436_drv + hi8436_top (tek entegre). Kartta iki HI-8436 var: '
-      'sistem seviyesinde iki instance. Paylaşılan hat için driver\'ın req/gnt arayüzü hazır; arbiter '
-      'henüz yazılmadı (top\'ta gnt = \'1\'). Datasheet SCK/SI/SO ortak, nCS ayrı bağlantıyı önerir '
-      '(s.14 Fig 9).', 30, 300, 520, 130, S_NOTE)
+p.path(ic2, dad, [(750, 175), (820, 175)])
+p.path(ic2, dh1, [(750, 215), (780, 215), (780, 305), (820, 305)])
+p.path(ic2, dh2, [(675, 240), (675, 435), (820, 435)])
+p.text('start, stop, ayarlar -&gt;<br>&lt;- sense, valid, err', 560, 500, 200, 34, S_TEXTC)
+for d, c, e in [(dad, sad, 175), (dh1, sh1, 305), (dh2, sh2, 435)]:
+    p.path(d, c, [(1060, e), (1180, e)], 'cmd / sdo /\nsdi / sync\n(gnt = \'1\')')
+for c, e, y in [(sad, cad, 175), (sh1, ch1, 305), (sh2, ch2, 435)]:
+    p.path(c, e, [(1400, y), (1500, y)], 'SCK / MOSI\nMISO / nCS')
+p.box('<b>Arbiter yok.</b> Kartta üç SPI hattı var; her hatta tek entegre: hat A = AD7923, hat B = HI-8436 #1, '
+      'hat C = HI-8436 #2 (K-5 cevabı). Her entegre kendi top\'u ile (driver + spi_exec) kullanılır ve '
+      'top\'ta gnt = \'1\'. Driver\'ın req/gnt arayüzü, ileride paylaşılan bir hat olursa arbiter '
+      'bağlamak için korunuyor.', 790, 590, 640, 80, S_NOTE)
+p.box('<b>Bu çalışmanın kapsamı</b><br>hi8436_drv + hi8436_top (tek entegre, tek hat). Kartta iki HI-8436 var, '
+      'her biri ayrı hatta: sistem seviyesinde iki hi8436_top instance\'ı. Datasheet\'in çoklu entegre için '
+      'önerdiği ortak SCK/SI/SO bağlantısı (s.14 Fig 9) bu kartta kullanılmıyor.', 30, 300, 520, 130, S_NOTE)
 p.box('<b>Driver arayüzü (düz sinyal)</b><br>giriş: start, stop, continuous, period_us, bank_mode, '
       'go/so center+hyst, self_test_req<br>çıkış: sense[31:0] (kalıcı), sense_valid (1 clk), sense_chg, '
       'sense_act, cfg_done, busy, err, err_code, st_done, st_fail', 30, 460, 520, 120, S_NOTE)

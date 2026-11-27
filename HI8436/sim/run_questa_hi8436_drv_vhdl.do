@@ -7,7 +7,7 @@
 #
 # Komut satırı:  cd sim ; vsim -c -do run_questa_hi8436_drv_vhdl.do
 # GUI:           cd sim ; vsim -do run_questa_hi8436_drv_vhdl.do
-# Timing köşeleri: T_SO = 5.0 ve 35.0 (SCK düşen -> SO, model). Paylaşılan core köşesi: DW = 16 / 32.
+# Timing köşeleri: T_SO = 5.0 ve 35.0 (SCK düşen -> SO, model). Core genişliği köşesi: DW = 16 / 32.
 #
 # Not: testbench +define+QUESTA ile derlenir; iç sinyallere SignalSpy
 # ($init_signal_spy / $signal_force) ile erişir, bu yüzden +acc gerekir.

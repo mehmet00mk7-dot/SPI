@@ -84,7 +84,7 @@ Interrupt / data-ready pini **yok**. Sense durumu yalnız SPI okumasıyla alın�
 | SCK rise / fall | t_SCKR/F | ≤ 10 ns | FPGA I/O + kart | driver kontrol etmez (AÇIK SORU K-6) |
 | SCK ↓ → SO geçerli | t_DV | ≤ 20 ns | Core, SO'yu düşen kenar + 40 ns'de örnekler (yükselen kenar + 1 clk). SO_DLY < 40 ns ise doğru okunur (tarama: 39 ns OK, 40 ns FAIL) | **20 ns**: SCK çıkış + kart gidiş-dönüş + FPGA giriş gecikmesi için |
 | SO hold (SCK ↓ sonrası) | – | **verilmemiş** | Sonraki değişim en erken düşen kenar + 60 ns'de, örneklemeden 20 ns sonra | +20 ns (hold = 0 varsayımı, AÇIK SORU DS-8) |
-| nCS ↑ → SO high-Z | t_CHZ | ≤ 20 ns | Sonraki CS ↓ ≥ 190 ns sonra | Paylaşılan SO hattında çakışma yok |
+| nCS ↑ → SO high-Z | t_CHZ | ≤ 20 ns | Sonraki CS ↓ ≥ 190 ns sonra | SO, sonraki çerçeveden önce high-Z olur |
 | nMR pulse | t_MR | ≥ 100 ns | MR_CLKS = 20 → 200 ns | +100 ns |
 | Sense değişimi → SO | – | ≤ 1 µs | bilgi (okuma gecikmesine eklenir) | – |
 | Eşik değişimi → SO | – | ≤ 1 µs | SETTLE_CLKS = 200 → 2 µs | +1 µs |
@@ -209,7 +209,7 @@ SO              [DB3 = SO31..SO24][DB2 = SO23..SO16][DB1 = SO15..SO8][DB0 = SO7.
     spi_exec_shiftreg.vhd ALIGNER).
   - sdi kelimesinin **yalnız [7:0]'ı** kullanılır. Core'un SDI shift register'ı kelimeler arasında
     temizlenmez (yalnız cs_activate'te), üst bitlerde önceki byte'lar kalır.
-  - Bu sayede aynı driver, paylaşılan hatta AD7923 için DATA_WIDTH = 16 olan ortak core'la da çalışır.
+  - Bu sayede aynı driver, core DATA_WIDTH = 16 veya 32 ile kullanılsa da çalışır.
 - Kendi top'umuzda: DATA_WIDTH = 8, NUM_OF_CS = 1, SDI_DELAY = "00", SDO_DEFAULT = "0", DEFAULT_SPI_CFG = 0.
 
 ### D.2 Komutlar (CLK_DIV = 2, CS_T = 1, CS_IDX = 0)
@@ -365,9 +365,9 @@ gerek yok; yerine "beklenen kelime sayısı" sayacı kullanılır. Select frame 
 |---|---|---|
 | CLKS_PER_US | 100 | 100 MHz (K-13) |
 | CLK_DIV | 2 | 16,67 MHz, ≤ 20 MHz olan en hızlı değer (B.1) |
-| CS_IDX | 0 | paylaşılan core'da bu entegrenin CS hattı |
+| CS_IDX | 0 | core'da bu entegrenin CS hattı (kartta her entegre kendi hattında, tek CS: 0) |
 | CS_T | 1 | t_CEH / t_CPH marjı (B.2) |
-| DATA_WIDTH | 8 | core kelime genişliği (8…32). Paylaşılan core'da 16/32 olabilir (D.1) |
+| DATA_WIDTH | 8 | core kelime genişliği (8…32). Driver 16/32 ile de çalışır (D.1) |
 | SDI_DELAY | 0 (top) | MISO marjı (B.2) |
 | HAS_MR | true | nMR bağlı değilse zararsız (dahili pull-up, K-1) |
 | MR_CLKS | 20 | 200 ns ≥ 100 ns (s.19) |
@@ -384,10 +384,13 @@ gerek yok; yerine "beklenen kelime sayısı" sayacı kullanılır. Select frame 
 | DEF_SO_CENTER / DEF_SO_HYST | 35 / 15 | Datasheet örneği: Supply/Open 5,0 / 2,0 V (s.8) |
 
 ### E.7 Sistem seviyesi
-- Kartta iki HI-8436 var. `hi8436_top` **tek entegre** içindir; iki instance sistem seviyesinde kullanılır.
-- Paylaşılan hat için req/gnt korunur. gnt, paketin SYNC'i gelene kadar tutulur.
-- Datasheet çoklu entegrede SCK/SI/SO'nun ortak, nCS'lerin ayrı olmasını öneriyor (s.14 Fig 9).
-  SO high-Z olduğu için (t_CHZ ≤ 20 ns, s.19) ortak MISO güvenli. Ortak core'da her driver farklı CS_IDX alır.
+- Kartta iki HI-8436 ve bir AD7923 var. **Her entegre ayrı SPI hattında ve hattındaki tek entegre**
+  (K-5 cevabı): hat A = AD7923, hat B = HI-8436 #1, hat C = HI-8436 #2.
+- `hi8436_top` **tek entegre, tek hat** içindir (driver + kendi spi_exec'i). İki HI-8436 için sistem
+  seviyesinde iki `hi8436_top` instance'ı kullanılır. Arbiter yok; her top'ta `gnt = '1'`.
+- req/gnt arayüzü driver'da korunur: ileride paylaşılan bir hat olursa arbiter bağlanabilir
+  (gnt, paketin SYNC'i gelene kadar tutulur).
+- Datasheet'in çoklu entegre önerisi (ortak SCK/SI/SO, ayrı nCS; s.14 Fig 9) bu kartta kullanılmıyor.
 
 ---
 
@@ -442,7 +445,7 @@ gerek yok; yerine "beklenen kelime sayısı" sayacı kullanılır. Select frame 
 
 - **Timing köşeleri**: Bütün testler T_SO = **5 ns** ve **35 ns** ile koşulur (t_DV ≤ 20 + 15 ns kart/IO).
   Ayrıca T_SO = 45 ns negatif kontrol: okuma bozulmalı (testin gecikmeye duyarlı olduğunu gösterir).
-- **DATA_WIDTH köşesi**: Testler bir kez de DATA_WIDTH = 16 (ve 32) core ile koşulur (paylaşılan core uyumu).
+- **DATA_WIDTH köşesi**: Testler bir kez de DATA_WIDTH = 16 (ve 32) core ile koşulur (driver'ın core genişliğinden bağımsızlığı).
 - **Negatif kontrol**: reset testleri (T20–T22), reset'i sync yapılmış bir kopyada **kalmalı**.
 
 ### F.3 Mutation adayları (≥ 4)
@@ -468,7 +471,7 @@ gerek yok; yerine "beklenen kelime sayısı" sayacı kullanılır. Select frame 
 | K-2 | Her iki entegrede her bankın modu (GND/Open mu Supply/Open mu)? | "0000" (POR değeri) | bank_mode / DEF_BANK_MODE |
 | K-3 | Eşikler: GND/Open ve Supply/Open için VTHI / VTLO? | Datasheet örnekleri: GO 3,0/1,0 V (20/10), SO 5,0/2,0 V (35/15) | go_* / so_*, DEF_* |
 | K-4 | VWET0..3 pinleri açık mı, hangi gerilimde? | GND/Open'da VWET açıksa VTHI ≤ 1,4 V olmalı → DEF_GO 9/5 | DEF_GO_* |
-| K-5 | SPI hattı: iki HI-8436 SCK/SI/SO'yu ortak mı kullanıyor (Fig 9)? Başka entegreyle paylaşım var mı? | Top: entegre başına ayrı hat. req/gnt hazır | CS_IDX, gnt |
+| K-5 | SPI hattı: iki HI-8436 SCK/SI/SO'yu ortak mı kullanıyor (Fig 9)? Başka entegreyle paylaşım var mı? | **Cevaplandı:** paylaşım yok. Her entegre ayrı hatta, hattındaki tek entegre (A: AD7923, B: HI-8436 #1, C: HI-8436 #2). Arbiter yok, gnt = '1', CS_IDX = 0 | CS_IDX, gnt |
 | K-6 | SCK ve SO hatlarında buffer / level shifter / uzun iz var mı? Toplam gidiş-dönüş gecikmesi? | ≤ 20 ns bütçe (B.2). Aşarsa SDI_DELAY = 1 | SDI_DELAY |
 | K-7 | Okuma periyodu ve kullanım: sürekli mi, sequencer tek tek mi tetikliyor? | Sequencer belirler, port | period_us, continuous |
 | K-8 | Self-test ne zaman: power-up BIT, periyodik, komutla? | Komutla (self_test_req) | ST_PATTERNS |
